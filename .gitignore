@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+
+# Temp / debug files
+*.log
+claude-*-cwd
+.claude/
+
+# Scraper / debug temp output
+*_test.txt
+*_out.txt
+html_sample.txt
+git_status.txt
+pyver.txt
+commit_out.txt

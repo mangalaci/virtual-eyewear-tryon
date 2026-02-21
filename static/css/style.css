@@ -1,0 +1,345 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #0f0f1a;
+    color: #e0e0e0;
+    min-height: 100vh;
+}
+
+header {
+    text-align: center;
+    padding: 1.5rem 1rem 1rem;
+}
+
+header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #6c63ff, #48c6ef);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.subtitle {
+    color: #888;
+    margin-top: 0.3rem;
+    font-size: 0.95rem;
+}
+
+main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.app-container {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+/* Camera Section */
+.camera-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.video-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: #1a1a2e;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 2px solid #2a2a3e;
+}
+
+#webcam {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    display: none;
+}
+
+#overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: scaleX(-1);
+    pointer-events: none;
+}
+
+.camera-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.placeholder-content {
+    text-align: center;
+    color: #555;
+}
+
+.placeholder-content svg {
+    margin-bottom: 1rem;
+}
+
+.camera-controls {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.btn {
+    padding: 0.7rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #6c63ff, #48c6ef);
+    color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(108, 99, 255, 0.4);
+}
+
+.btn-secondary {
+    background: #2a2a3e;
+    color: #ccc;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: #3a3a4e;
+}
+
+/* Measurements Panel */
+.measurements-panel {
+    background: #1a1a2e;
+    border-radius: 12px;
+    padding: 1.2rem;
+    border: 1px solid #2a2a3e;
+}
+
+.measurements-panel h3 {
+    font-size: 1rem;
+    color: #aaa;
+    margin-bottom: 0.8rem;
+}
+
+.measurement-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.measurement-item {
+    text-align: center;
+}
+
+.measurement-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #777;
+    margin-bottom: 0.3rem;
+}
+
+.measurement-value {
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #48c6ef;
+}
+
+/* Products Section */
+.products-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.products-section h2 {
+    font-size: 1.2rem;
+    color: #ccc;
+}
+
+.product-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.product-card {
+    background: #1a1a2e;
+    border: 2px solid #2a2a3e;
+    border-radius: 10px;
+    padding: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.product-card:hover {
+    border-color: #6c63ff;
+    transform: translateX(-2px);
+}
+
+.product-card.selected {
+    border-color: #48c6ef;
+    background: #1e1e3a;
+    box-shadow: 0 0 15px rgba(72, 198, 239, 0.15);
+}
+
+.product-thumb {
+    width: 60px;
+    height: 36px;
+    border-radius: 6px;
+    background: #252540;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.product-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.product-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.product-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #ddd;
+}
+
+.product-specs {
+    font-size: 0.75rem;
+    color: #777;
+    margin-top: 0.15rem;
+}
+
+.product-type-badge {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 20px;
+    background: #2a2a4e;
+    color: #8888aa;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Recommendation Panel */
+.recommendation-panel {
+    background: #1a1a2e;
+    border-radius: 12px;
+    padding: 1.2rem;
+    border: 1px solid #2a2a3e;
+}
+
+.recommendation-panel h3 {
+    font-size: 1rem;
+    color: #aaa;
+    margin-bottom: 0.8rem;
+}
+
+.rec-item {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid #252540;
+}
+
+.rec-item:last-child {
+    border-bottom: none;
+}
+
+.rec-rank {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #2a2a4e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #6c63ff;
+    flex-shrink: 0;
+}
+
+.rec-rank.top {
+    background: linear-gradient(135deg, #6c63ff, #48c6ef);
+    color: white;
+}
+
+.rec-info {
+    flex: 1;
+}
+
+.rec-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.rec-notes {
+    font-size: 0.7rem;
+    color: #777;
+    margin-top: 0.15rem;
+}
+
+.rec-score {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #48c6ef;
+}
+
+/* Responsive */
+@media (max-width: 800px) {
+    .app-container {
+        grid-template-columns: 1fr;
+    }
+
+    .measurement-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .product-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+}

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Eyewear Try-On</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header>
+        <h1>Virtual Eyewear Try-On</h1>
+        <p class="subtitle">Try on glasses using your webcam — get personalized size recommendations</p>
+    </header>
+
+    <main>
+        <div class="app-container">
+            <!-- Camera Section -->
+            <section class="camera-section">
+                <div class="video-container" id="videoContainer">
+                    <video id="webcam" autoplay playsinline></video>
+                    <canvas id="overlay"></canvas>
+                    <div class="camera-placeholder" id="cameraPlaceholder">
+                        <div class="placeholder-content">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                                <circle cx="12" cy="13" r="4"/>
+                            </svg>
+                            <p>Click "Start Camera" to begin</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="camera-controls">
+                    <button id="startBtn" class="btn btn-primary">Start Camera</button>
+                    <button id="stopBtn" class="btn btn-secondary" disabled>Stop Camera</button>
+                </div>
+
+                <!-- Measurements Panel -->
+                <div class="measurements-panel" id="measurementsPanel">
+                    <h3>Face Measurements</h3>
+                    <div class="measurement-grid">
+                        <div class="measurement-item">
+                            <span class="measurement-label">Pupillary Distance (PD)</span>
+                            <span class="measurement-value" id="pdValue">—</span>
+                        </div>
+                        <div class="measurement-item">
+                            <span class="measurement-label">Bridge Width</span>
+                            <span class="measurement-value" id="bridgeValue">—</span>
+                        </div>
+                        <div class="measurement-item">
+                            <span class="measurement-label">Face Width</span>
+                            <span class="measurement-value" id="faceWidthValue">—</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Products Section -->
+            <section class="products-section">
+                <h2>Select Frames</h2>
+                <div class="product-grid" id="productGrid">
+                    <!-- Products loaded dynamically -->
+                </div>
+
+                <!-- Recommendation Panel -->
+                <div class="recommendation-panel" id="recommendationPanel" style="display: none;">
+                    <h3>Size Recommendations</h3>
+                    <div id="recommendationList"></div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
