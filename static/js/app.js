@@ -271,7 +271,7 @@ function drawGlassesOverlay(landmarks, m) {
     // frame front width = lens_width × 2 + bridge_width (from products.json)
     const product = products.find(p => p.id === selectedProductId);
     const frameFrontMm = (product.lens_width * 2) + product.bridge_width;
-    const glassesWidth = frameFrontMm * m.pxPerMm;
+    const glassesWidth = frameFrontMm * m.pxPerMm * 1.2;
     const glassesHeight = glassesWidth * (img.naturalHeight / img.naturalWidth);
 
     // Center between pupils
