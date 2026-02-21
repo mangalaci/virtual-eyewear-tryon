@@ -285,13 +285,12 @@ function drawGlassesOverlay(landmarks, m) {
     // centres sit (0 = top, 1 = bottom). Default 0.5 = image centre.
     const lensYFrac = product?.lens_y_frac ?? 0.5;
 
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.rotate(angle);
-    ctx.drawImage(img, -glassesWidth / 2, -lensYFrac * glassesHeight, glassesWidth, glassesHeight);
-    ctx.restore();
-
-    // --- Temple arms ---
+    // --- Temple arms (drawn FIRST, behind the frame image) ---
+    // We use globalCompositeOperation = 'destination-over' so the arms are
+    // composited underneath anything already on the canvas. Since the frame
+    // image is drawn after with 'source-over', its opaque pixels fully cover
+    // the arm, and semi-transparent lens pixels let through only what isn't
+    // already blocked — keeping the arm invisible behind the solid frame.
     const cos_a = Math.cos(angle);
     const sin_a = Math.sin(angle);
 
@@ -309,19 +308,17 @@ function drawGlassesOverlay(landmarks, m) {
 
     const armWidth = Math.max(2, glassesHeight * 0.055);
     ctx.save();
+    ctx.globalCompositeOperation = "destination-over"; // arms go BEHIND existing canvas content
     ctx.strokeStyle = product.color || "#222222";
     ctx.lineWidth = armWidth;
     ctx.lineCap = "round";
 
-    // Draw each arm as a quadratic bezier that bows slightly outward from the face,
-    // giving a more natural curve than a straight line.
     for (const [hx, hy, ex, ey] of [
         [rightHingeX, rightHingeY, m.rightTemple.x, m.rightTemple.y],
         [leftHingeX,  leftHingeY,  m.leftTemple.x,  m.leftTemple.y],
     ]) {
         const mx = (hx + ex) / 2;
         const my = (hy + ey) / 2;
-        // Outward direction: from face centre toward the hinge point
         const outX = hx - centerX, outY = hy - centerY;
         const outLen = Math.sqrt(outX * outX + outY * outY) || 1;
         const cpX = mx + (outX / outLen) * glassesWidth * 0.10;
@@ -332,6 +329,13 @@ function drawGlassesOverlay(landmarks, m) {
         ctx.stroke();
     }
 
+    ctx.restore(); // restores composite operation to 'source-over'
+
+    // --- Frame image (drawn ON TOP of the arms) ---
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(angle);
+    ctx.drawImage(img, -glassesWidth / 2, -lensYFrac * glassesHeight, glassesWidth, glassesHeight);
     ctx.restore();
 }
 
