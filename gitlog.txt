@@ -1,5 +1,0 @@
-1fdd189d06f7d2d30998b71cfb1311dab46d5f5e mangalaci <laszlofeher@hotmail.com> Draw arms behind frame image; raise lens_y_frac for all products
-bce82caddc444e4781c119b4f8a33a1f27ab96da mangalaci <laszlofeher@hotmail.com> Add comprehensive README with project details
-167411db08c197d4c276af5dbb67194c62536eb6 mangalaci <laszlofeher@hotmail.com> Add README content
-2ed271743754548153ad9ed2b263ea54ed867234 mangalaci <laszlofeher@hotmail.com> Update README
-7bf1fae00b85a0ba1e519a08d73e7ed6d7b98e75 mangalaci <laszlofeher@hotmail.com> Virtual eyewear try-on with AR overlay
