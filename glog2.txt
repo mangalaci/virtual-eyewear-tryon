@@ -1,0 +1,17 @@
+OUT:1fdd189 Draw arms behind frame image; raise lens_y_frac for all products
+bce82ca Add comprehensive README with project details
+167411d Add README content
+2ed2717 Update README
+7bf1fae Virtual eyewear try-on with AR overlay
+843ddc7 Fix temple arm hinge position, add bezier curve
+b62914e Fix canvas/video scale mismatch, add temple arms
+b8180aa Use physical dimensions for glasses sizing, remove yaw compression
+a152a58 Fix glasses overlay size and add yaw perspective effect
+eb6a895 Use real Ray-Ban product photos, fix glasses overlay sizing
+79340b7 Fix glasses images, routing, and MediaPipe API
+8eb6cf5 Remove white background from Ray-Ban images (PIL threshold + feathering)
+1148b16 Replace catalog images with high-quality transparent Ray-Ban PNGs
+8329c37 Add full project: FastAPI backend, MediaPipe AR frontend, eOptika product images
+660015f Initial commit
+
+ERR:
