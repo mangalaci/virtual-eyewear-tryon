@@ -285,22 +285,20 @@ function drawGlassesOverlay(landmarks, m) {
     // centres sit (0 = top, 1 = bottom). Default 0.5 = image centre.
     const lensYFrac = product?.lens_y_frac ?? 0.5;
 
-    // --- Temple arms (drawn FIRST, behind the frame image) ---
-    // We use globalCompositeOperation = 'destination-over' so the arms are
-    // composited underneath anything already on the canvas. Since the frame
-    // image is drawn after with 'source-over', its opaque pixels fully cover
-    // the arm, and semi-transparent lens pixels let through only what isn't
-    // already blocked — keeping the arm invisible behind the solid frame.
     const cos_a = Math.cos(angle);
     const sin_a = Math.sin(angle);
 
-    // hinge_y_frac: how far down from the TOP of the image the hinge sits.
-    // In rotated (frame) space the image top is at y = -lensYFrac*H, so the hinge is at:
-    //   hinge_y_rot = -lensYFrac*H + hingeYFrac*H = -(lensYFrac - hingeYFrac)*H
+    // --- Frame image (drawn FIRST) ---
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(angle);
+    ctx.drawImage(img, -glassesWidth / 2, -lensYFrac * glassesHeight, glassesWidth, glassesHeight);
+    ctx.restore();
+
+    // --- Temple arms (drawn AFTER the frame, so they don't bleed through transparent lenses) ---
     const hingeYFrac = product.hinge_y_frac ?? 0.10;
     const hinge_y_rot = -(lensYFrac - hingeYFrac) * glassesHeight;
 
-    // Transform hinge from rotated frame space → canvas world space
     const rightHingeX = centerX + (glassesWidth / 2) * cos_a - hinge_y_rot * sin_a;
     const rightHingeY = centerY + (glassesWidth / 2) * sin_a + hinge_y_rot * cos_a;
     const leftHingeX  = centerX - (glassesWidth / 2) * cos_a - hinge_y_rot * sin_a;
@@ -308,7 +306,6 @@ function drawGlassesOverlay(landmarks, m) {
 
     const armWidth = Math.max(2, glassesHeight * 0.055);
     ctx.save();
-    ctx.globalCompositeOperation = "destination-over"; // arms go BEHIND existing canvas content
     ctx.strokeStyle = product.color || "#222222";
     ctx.lineWidth = armWidth;
     ctx.lineCap = "round";
@@ -329,13 +326,6 @@ function drawGlassesOverlay(landmarks, m) {
         ctx.stroke();
     }
 
-    ctx.restore(); // restores composite operation to 'source-over'
-
-    // --- Frame image (drawn ON TOP of the arms) ---
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.rotate(angle);
-    ctx.drawImage(img, -glassesWidth / 2, -lensYFrac * glassesHeight, glassesWidth, glassesHeight);
     ctx.restore();
 }
 
