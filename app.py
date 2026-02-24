@@ -12,7 +12,14 @@ PRODUCTS_FILE = Path(__file__).resolve().parent / "products.json"
 
 app = FastAPI(title="Virtual Eyewear Try-On")
 
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+
+static_dir = BASE_DIR / "static"
+
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
