@@ -29,3 +29,11 @@ html_sample.txt
 git_status.txt
 pyver.txt
 commit_out.txt
+# Logs / junk
+*.txt
+*.log
+*.out
+
+# Keep product images
+!static/glasses/*.png
+
