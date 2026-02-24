@@ -285,47 +285,11 @@ function drawGlassesOverlay(landmarks, m) {
     // centres sit (0 = top, 1 = bottom). Default 0.5 = image centre.
     const lensYFrac = product?.lens_y_frac ?? 0.5;
 
-    const cos_a = Math.cos(angle);
-    const sin_a = Math.sin(angle);
-
-    // --- Frame image (drawn FIRST) ---
+    // --- Frame image (arms are baked into the PNG, no separate canvas arm drawing needed) ---
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate(angle);
     ctx.drawImage(img, -glassesWidth / 2, -lensYFrac * glassesHeight, glassesWidth, glassesHeight);
-    ctx.restore();
-
-    // --- Temple arms (drawn AFTER the frame, so they don't bleed through transparent lenses) ---
-    const hingeYFrac = product.hinge_y_frac ?? 0.10;
-    const hinge_y_rot = -(lensYFrac - hingeYFrac) * glassesHeight;
-
-    const rightHingeX = centerX + (glassesWidth / 2) * cos_a - hinge_y_rot * sin_a;
-    const rightHingeY = centerY + (glassesWidth / 2) * sin_a + hinge_y_rot * cos_a;
-    const leftHingeX  = centerX - (glassesWidth / 2) * cos_a - hinge_y_rot * sin_a;
-    const leftHingeY  = centerY - (glassesWidth / 2) * sin_a + hinge_y_rot * cos_a;
-
-    const armWidth = Math.max(2, glassesHeight * 0.055);
-    ctx.save();
-    ctx.strokeStyle = product.color || "#222222";
-    ctx.lineWidth = armWidth;
-    ctx.lineCap = "round";
-
-    for (const [hx, hy, ex, ey] of [
-        [rightHingeX, rightHingeY, m.rightTemple.x, m.rightTemple.y],
-        [leftHingeX,  leftHingeY,  m.leftTemple.x,  m.leftTemple.y],
-    ]) {
-        const mx = (hx + ex) / 2;
-        const my = (hy + ey) / 2;
-        const outX = hx - centerX, outY = hy - centerY;
-        const outLen = Math.sqrt(outX * outX + outY * outY) || 1;
-        const cpX = mx + (outX / outLen) * glassesWidth * 0.10;
-        const cpY = my + (outY / outLen) * glassesWidth * 0.10;
-        ctx.beginPath();
-        ctx.moveTo(hx, hy);
-        ctx.quadraticCurveTo(cpX, cpY, ex, ey);
-        ctx.stroke();
-    }
-
     ctx.restore();
 }
 
