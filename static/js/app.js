@@ -306,40 +306,11 @@ function drawGlassesOverlay(landmarks, m) {
     // lens_y_frac: auto-detected from image pixels (vertical centre of mass of opaque pixels).
     const lensYFrac = glassesParams[selectedProductId]?.lens_y_frac ?? 0.5;
 
-    // --- ARMS (drawn first so frame image covers the roots) ---
-    // Hinge = outer edge of frame front at pupil height
-    const halfFrame = frameWidth / 2;
-    const cos_a = Math.cos(angle), sin_a = Math.sin(angle);
-    const rightHingeX = centerX + halfFrame * cos_a;
-    const rightHingeY = centerY + halfFrame * sin_a;
-    const leftHingeX  = centerX - halfFrame * cos_a;
-    const leftHingeY  = centerY - halfFrame * sin_a;
-
-    // Arm direction: always OUTWARD from center (robust against any angle value).
-    const armLength = pdPx * 0.8;
-    const armW = Math.max(3, drawHeight * 0.055);
-    ctx.save();
-    ctx.strokeStyle = product.color || '#222222';
-    ctx.lineWidth = armW;
-    ctx.lineCap = 'round';
-    for (const [hx, hy] of [[rightHingeX, rightHingeY], [leftHingeX, leftHingeY]]) {
-        const dx = hx - centerX, dy = hy - centerY;
-        const len = Math.hypot(dx, dy) || 1;
-        ctx.beginPath();
-        ctx.moveTo(hx, hy);
-        ctx.lineTo(hx + (dx / len) * armLength, hy + (dy / len) * armLength);
-        ctx.stroke();
-    }
-    ctx.restore();
-
-    // --- FRAME IMAGE clipped to frame-front area (hides arm portions of photo) ---
+    // --- FRAME IMAGE: draw full product photo (arms are in the photo itself) ---
     const imgTop = -lensYFrac * drawHeight;
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate(angle);
-    ctx.beginPath();
-    ctx.rect(-halfFrame, imgTop, halfFrame * 2, drawHeight);
-    ctx.clip();
     ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, drawHeight);
     ctx.restore();
 }
