@@ -82,12 +82,14 @@ def remove_background(img_bytes: bytes, threshold: int = 235) -> Image.Image:
     # Pixels near-white → transparent
     near_white = (r > threshold) & (g > threshold) & (b > threshold)
 
-    # Also flood-fill from corners to catch backgrounds not perfectly white
-    from PIL import ImageFilter
-    # Slightly lower threshold for flood fill seed
-    seed_mask = (r > 220) & (g > 220) & (b > 220)
+    # Flood-fill from corners:
+    #   seed_mask  = bright edge pixels that start the fill (avg > 220)
+    #   fill_mask  = pixels the fill can spread through (avg > 175, catches grey reflections)
+    # This removes connected grey regions reachable from edges, but NOT enclosed lens pixels.
+    avg = (r.astype(int) + g.astype(int) + b.astype(int)) / 3
+    seed_mask = avg > 220   # start from bright/white edge pixels
+    fill_mask = avg > 175   # spread through grey shadows/reflections connected to bg
 
-    # Simple BFS from image corners
     h, w = near_white.shape
     visited = np.zeros((h, w), bool)
     queue = []
@@ -106,18 +108,13 @@ def remove_background(img_bytes: bytes, threshold: int = 235) -> Image.Image:
         cy, cx = queue.pop()
         for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
             ny, nx = cy + dy, cx + dx
-            if 0 <= ny < h and 0 <= nx < w and not visited[ny, nx] and seed_mask[ny, nx]:
+            if 0 <= ny < h and 0 <= nx < w and not visited[ny, nx] and fill_mask[ny, nx]:
                 visited[ny, nx] = True
                 queue.append((ny, nx))
 
-    # Union: near-white OR flood-fill region → transparent
+    # Union: near-white OR connected flood-fill region → transparent
     bg_mask = near_white | visited
     data[:, :, 3] = np.where(bg_mask, 0, 255)
-
-    # Also remove semi-transparent grey remnants (reflections, shadows):
-    # any pixel whose RGB average is > 160 AND alpha is still set → make transparent
-    grey_remnant = (r.astype(int) + g.astype(int) + b.astype(int)) / 3 > 160
-    data[:, :, 3] = np.where(grey_remnant & (data[:, :, 3] > 0), 0, data[:, :, 3])
 
     result = Image.fromarray(data, "RGBA")
 
