@@ -345,22 +345,40 @@ function drawGlassesOverlay(landmarks, m) {
     const leftHingeX  = centerX - halfFrame * cos_a;
     const leftHingeY  = centerY - halfFrame * sin_a;
 
-    // --- FRAME PHOTO (full image, no clip) ---
     const imgTop = -lensYFrac * drawHeight;
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.rotate(angle);
-    ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, drawHeight);
-    ctx.restore();
 
-    // --- ARMS drawn BEHIND frame photo (destination-over: only shows where canvas is transparent) ---
+    // Frame photo rectangle corners in canvas space (rotated)
+    const fw2 = drawWidth / 2;
+    const fc = [
+        [-fw2, imgTop], [fw2, imgTop],
+        [fw2, imgTop + drawHeight], [-fw2, imgTop + drawHeight],
+    ].map(([lx, ly]) => ({
+        x: centerX + lx * cos_a - ly * sin_a,
+        y: centerY + lx * sin_a + ly * cos_a,
+    }));
+
+    // --- ARMS: drawn only OUTSIDE the frame photo rectangle (evenodd clip) ---
     ctx.save();
-    ctx.globalCompositeOperation = 'destination-over';
+    ctx.beginPath();
+    ctx.rect(0, 0, canvas.width, canvas.height);   // full canvas
+    ctx.moveTo(fc[0].x, fc[0].y);                  // frame rect (opposite winding)
+    ctx.lineTo(fc[1].x, fc[1].y);
+    ctx.lineTo(fc[2].x, fc[2].y);
+    ctx.lineTo(fc[3].x, fc[3].y);
+    ctx.closePath();
+    ctx.clip('evenodd');
     ctx.strokeStyle = armColor;
     ctx.lineWidth   = armThickness;
     ctx.lineCap     = 'round';
     ctx.beginPath(); ctx.moveTo(rightHingeX, rightHingeY); ctx.lineTo(m.rightTemple.x, m.rightTemple.y); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(leftHingeX,  leftHingeY);  ctx.lineTo(m.leftTemple.x,  m.leftTemple.y);  ctx.stroke();
+    ctx.restore();
+
+    // --- FRAME PHOTO drawn on top (covers arm roots, full image no clip) ---
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(angle);
+    ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, drawHeight);
     ctx.restore();
 }
 
