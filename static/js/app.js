@@ -271,8 +271,13 @@ function drawGlassesOverlay(landmarks, m) {
     // frame front width = lens_width × 2 + bridge_width (from products.json)
     const product = products.find(p => p.id === selectedProductId);
     const frameFrontMm = (product.lens_width * 2) + product.bridge_width;
+    // glassesWidth = physical frame-front width in canvas px (also used for hinge offset)
     const glassesWidth = frameFrontMm * m.pxPerMm * 1.2;
-    const glassesHeight = glassesWidth * (img.naturalHeight / img.naturalWidth);
+    // frame_fill_ratio: fraction of the PNG width occupied by the frame front.
+    // Divide to get the total draw width so the frame front renders at the correct size.
+    const frameFillRatio = product.frame_fill_ratio ?? 0.455;
+    const drawWidth = glassesWidth / frameFillRatio;
+    const glassesHeight = drawWidth * (img.naturalHeight / img.naturalWidth);
 
     // Center between pupils
     const centerX = (m.leftPupil.x + m.rightPupil.x) / 2;
@@ -288,11 +293,11 @@ function drawGlassesOverlay(landmarks, m) {
     const cos_a = Math.cos(angle);
     const sin_a = Math.sin(angle);
 
-    // --- Frame image (drawn first, arms drawn separately by canvas) ---
+    // --- Frame image ---
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate(angle);
-    ctx.drawImage(img, -glassesWidth / 2, -lensYFrac * glassesHeight, glassesWidth, glassesHeight);
+    ctx.drawImage(img, -drawWidth / 2, -lensYFrac * glassesHeight, drawWidth, glassesHeight);
     ctx.restore();
 
     // --- Temple arms (drawn AFTER frame so they don't bleed through transparent lenses) ---
