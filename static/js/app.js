@@ -102,11 +102,32 @@ function analyzeGlassesImage(productId, img) {
         ? `rgb(${Math.round(rS/cnt)},${Math.round(gS/cnt)},${Math.round(bS/cnt)})`
         : '#222222';
 
+    // 4. Lens tint color: sample centre region of each lens in the photo
+    const fpW = rightHinge - leftHinge;
+    const leftLcx = Math.round(leftHinge + fpW * 0.26);
+    const rightLcx = Math.round(leftHinge + fpW * 0.74);
+    const lcy = Math.round(h * 0.55);
+    let lr=0, lg=0, lb=0, lc=0;
+    const SR = 15;
+    for (let dy = -SR; dy <= SR; dy++)
+        for (let dx = -SR; dx <= SR; dx++)
+            for (const cx of [leftLcx + dx, rightLcx + dx]) {
+                const cy = lcy + dy;
+                if (cy < 0 || cy >= h || cx < 0 || cx >= w) continue;
+                const i = (cy * w + cx) * 4;
+                if (data[i + 3] < 128) continue;
+                lr += data[i]; lg += data[i+1]; lb += data[i+2]; lc++;
+            }
+    const lens_color = lc > 0
+        ? `rgba(${Math.round(lr/lc)},${Math.round(lg/lc)},${Math.round(lb/lc)},0.82)`
+        : 'rgba(80,60,40,0.82)';
+
     glassesParams[productId] = {
         lens_y_frac,
         left_hinge_frac:  leftHinge  / w,
         right_hinge_frac: rightHinge / w,
         arm_color,
+        lens_color,
     };
 }
 
@@ -379,6 +400,34 @@ function drawGlassesOverlay(landmarks, m) {
     ctx.translate(centerX, centerY);
     ctx.rotate(angle);
     ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, drawHeight);
+    ctx.restore();
+
+    // --- LENS FILL: sunglasses=tinted fill, optical=transparent hole ---
+    const lensW = pdPx * (product.lens_width / AVG_HUMAN_PD_MM);
+    const lensH = lensW * 0.88;
+    const isSunglasses = (product.type === 'sunglasses' || product.type === 'cat-eye');
+
+    ctx.save();
+    if (isSunglasses) {
+        // Fill lens ellipses with photo-detected tint → covers any stub artefacts
+        ctx.fillStyle = params.lens_color ?? 'rgba(80,60,40,0.82)';
+        ctx.beginPath();
+        ctx.ellipse(m.leftPupil.x,  m.leftPupil.y,  lensW/2, lensH/2, angle, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(m.rightPupil.x, m.rightPupil.y, lensW/2, lensH/2, angle, 0, Math.PI*2);
+        ctx.fill();
+    } else {
+        // Optical: erase lens area so face shows through
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = 'rgba(0,0,0,1)';
+        ctx.beginPath();
+        ctx.ellipse(m.leftPupil.x,  m.leftPupil.y,  lensW/2, lensH/2, angle, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(m.rightPupil.x, m.rightPupil.y, lensW/2, lensH/2, angle, 0, Math.PI*2);
+        ctx.fill();
+    }
     ctx.restore();
 }
 
