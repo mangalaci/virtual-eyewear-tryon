@@ -102,12 +102,13 @@ function analyzeGlassesImage(productId, img) {
         ? `rgb(${Math.round(rS/cnt)},${Math.round(gS/cnt)},${Math.round(bS/cnt)})`
         : '#222222';
 
-    // 4. Build lens OffscreenCanvas: flood-fill from lens centres + inpaint enclosed stubs
-    const DARK_THR = 80;
-    const fpW    = rightHinge - leftHinge;
+    // 4. Build lens mask via flood-fill from lens centres
+    // DARK_THR=200: sum(R+G+B)<=200 treated as dark frame border → flood-fill stops there
+    const DARK_THR = 200;
+    const fpW      = rightHinge - leftHinge;
     const leftLcx  = Math.round(leftHinge + fpW * 0.26);
     const rightLcx = Math.round(leftHinge + fpW * 0.74);
-    const lcy = Math.round(h * 0.55);
+    const lcy      = Math.round(h * 0.55);
 
     const lensMask = new Uint8Array(w * h);
     const ffVisited = new Uint8Array(w * h);
@@ -137,51 +138,46 @@ function analyzeGlassesImage(productId, img) {
     floodFillLens(leftLcx, lcy);
     floodFillLens(rightLcx, lcy);
 
-    // Stub pixels: dark opaque, adjacent to a lens pixel (BFS expand)
-    const stubMask = new Uint8Array(w * h);
-    const stubQ = [];
-    for (let y = 1; y < h-1; y++)
-        for (let x = 1; x < w-1; x++) {
-            const i = y*w+x, di = i*4;
-            if (lensMask[i] || data[di+3] < 128 || data[di]+data[di+1]+data[di+2] > DARK_THR) continue;
-            if (lensMask[(y-1)*w+x] || lensMask[(y+1)*w+x] || lensMask[y*w+x-1] || lensMask[y*w+x+1])
-                { stubMask[i] = 1; stubQ.push([y, x]); }
-        }
-    for (let qi = 0; qi < stubQ.length; qi++) {
-        const [cy, cx] = stubQ[qi];
-        for (const [dy, dx] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-            const ny = cy+dy, nx = cx+dx;
-            if (ny < 0 || ny >= h || nx < 0 || nx >= w) continue;
-            const ni = ny*w+nx, ndi = ni*4;
-            if (stubMask[ni] || lensMask[ni] || data[ndi+3] < 128) continue;
-            if (data[ndi]+data[ndi+1]+data[ndi+2] > DARK_THR) continue;
-            stubMask[ni] = 1; stubQ.push([ny, nx]);
-        }
-    }
+    // 5. Sample authentic lens colour from the central strip (away from hinges/stubs)
+    let yMin = h, yMax = 0;
+    for (let y = 0; y < h; y++)
+        for (let x = leftHinge; x <= rightHinge; x++)
+            if (lensMask[y*w+x]) { if (y < yMin) yMin = y; if (y > yMax) yMax = y; }
 
-    // Build lens pixel buffer: copy lens, inpaint stubs
+    const sampleX1 = Math.round(leftHinge + fpW * 0.35);
+    const sampleX2 = Math.round(leftHinge + fpW * 0.65);
+    const topBand  = Math.round(yMin + (yMax - yMin) * 0.3);
+    const botBand  = Math.round(yMin + (yMax - yMin) * 0.7);
+
+    let rT=0, gT=0, bT=0, cT=0, rB=0, gB=0, bB=0, cB=0;
+    for (let y = yMin; y <= topBand; y++)
+        for (let x = sampleX1; x <= sampleX2; x++) {
+            if (!lensMask[y*w+x]) continue;
+            const di = (y*w+x)*4;
+            rT += data[di]; gT += data[di+1]; bT += data[di+2]; cT++;
+        }
+    for (let y = botBand; y <= yMax; y++)
+        for (let x = sampleX1; x <= sampleX2; x++) {
+            if (!lensMask[y*w+x]) continue;
+            const di = (y*w+x)*4;
+            rB += data[di]; gB += data[di+1]; bB += data[di+2]; cB++;
+        }
+    const topColor = cT > 0 ? [rT/cT, gT/cT, bT/cT] : [200, 150, 60];
+    const botColor = cB > 0 ? [rB/cB, gB/cB, bB/cB] : [120,  80, 30];
+
+    // 6. Build gradient-filled lensCanvas: correct shape, clean gradient, no stub artefacts
     const lensData = new Uint8ClampedArray(w * h * 4);
+    const lensRange = Math.max(1, yMax - yMin);
     for (let y = 0; y < h; y++)
         for (let x = 0; x < w; x++) {
             const i = y*w+x;
             if (!lensMask[i]) continue;
+            const t  = Math.max(0, Math.min(1, (y - yMin) / lensRange));
             const di = i*4;
-            lensData[di]=data[di]; lensData[di+1]=data[di+1];
-            lensData[di+2]=data[di+2]; lensData[di+3]=data[di+3];
-        }
-    for (let y = 0; y < h; y++)
-        for (let x = 0; x < w; x++) {
-            const i = y*w+x;
-            if (!stubMask[i]) continue;
-            let lc=null, rc=null;
-            for (let dx=1; dx<w; dx++) {
-                const lx=x-dx, rx=x+dx;
-                if (!lc && lx>=0 && lensMask[y*w+lx]) { const li=(y*w+lx)*4; lc=[lensData[li],lensData[li+1],lensData[li+2]]; }
-                if (!rc && rx<w  && lensMask[y*w+rx]) { const ri=(y*w+rx)*4; rc=[lensData[ri],lensData[ri+1],lensData[ri+2]]; }
-                if (lc&&rc) break;
-            }
-            const col = lc&&rc ? [(lc[0]+rc[0])/2,(lc[1]+rc[1])/2,(lc[2]+rc[2])/2] : lc||rc;
-            if (col) { const di=i*4; lensData[di]=col[0]; lensData[di+1]=col[1]; lensData[di+2]=col[2]; lensData[di+3]=255; }
+            lensData[di]   = Math.round(topColor[0]*(1-t) + botColor[0]*t);
+            lensData[di+1] = Math.round(topColor[1]*(1-t) + botColor[1]*t);
+            lensData[di+2] = Math.round(topColor[2]*(1-t) + botColor[2]*t);
+            lensData[di+3] = 215; // slightly transparent — tinted lens feel
         }
 
     const lensOC = new OffscreenCanvas(w, h);
