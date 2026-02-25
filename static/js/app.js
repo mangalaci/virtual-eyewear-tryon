@@ -293,11 +293,50 @@ function drawGlassesOverlay(landmarks, m) {
     const cos_a = Math.cos(angle);
     const sin_a = Math.sin(angle);
 
-    // --- Frame image ---
+    // Hinge position: outer edge of frame front, at hinge_y_frac height in the image
+    const hingeYFrac = product.hinge_y_frac ?? 0.10;
+    const hinge_y_rot = -(lensYFrac - hingeYFrac) * glassesHeight;
+
+    const rightHingeX = centerX + (glassesWidth / 2) * cos_a - hinge_y_rot * sin_a;
+    const rightHingeY = centerY + (glassesWidth / 2) * sin_a + hinge_y_rot * cos_a;
+    const leftHingeX  = centerX - (glassesWidth / 2) * cos_a - hinge_y_rot * sin_a;
+    const leftHingeY  = centerY - (glassesWidth / 2) * sin_a + hinge_y_rot * cos_a;
+
+    // --- Temple arms (drawn FIRST, frame image drawn on top to cover arm roots) ---
+    // Arms extend outward from hinges at a slight downward angle (~8°),
+    // like real arms going toward the ear in a frontal view.
+    const armLength = glassesWidth * 0.45;
+    const armTilt = 0.14; // radians downward (~8°)
+    const rightArmEndX = rightHingeX + armLength * Math.cos(angle + armTilt);
+    const rightArmEndY = rightHingeY + armLength * Math.sin(angle + armTilt);
+    const leftArmEndX  = leftHingeX  - armLength * Math.cos(angle - armTilt);
+    const leftArmEndY  = leftHingeY  - armLength * Math.sin(angle - armTilt);
+
+    const armWidth = Math.max(3, glassesHeight * 0.06);
+    ctx.save();
+    ctx.strokeStyle = product.color || "#222222";
+    ctx.lineWidth = armWidth;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(rightHingeX, rightHingeY);
+    ctx.lineTo(rightArmEndX, rightArmEndY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(leftHingeX, leftHingeY);
+    ctx.lineTo(leftArmEndX, leftArmEndY);
+    ctx.stroke();
+    ctx.restore();
+
+    // --- Frame image, clipped to frame-front area (hides the arms in the product photo) ---
+    const clipHalfW = (frameFillRatio * drawWidth) / 2;
+    const imgTop = -lensYFrac * glassesHeight;
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate(angle);
-    ctx.drawImage(img, -drawWidth / 2, -lensYFrac * glassesHeight, drawWidth, glassesHeight);
+    ctx.beginPath();
+    ctx.rect(-clipHalfW, imgTop, clipHalfW * 2, glassesHeight);
+    ctx.clip();
+    ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, glassesHeight);
     ctx.restore();
 }
 
