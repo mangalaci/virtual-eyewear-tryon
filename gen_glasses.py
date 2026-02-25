@@ -100,6 +100,19 @@ def gen_clubmaster(path):
                              radius=8 * s, fill=col)
     img = add_shape(img, draw_bridge, GOLD)
 
+    # --- Temples ---
+    def draw_temples(d, col):
+        ty = cy - 5 * s
+        d.polygon([
+            (lx0, ty - t_h), (lx0 - t_len, ty + t_h * 2),
+            (lx0 - t_len, ty + t_h * 3), (lx0, ty + t_h),
+        ], fill=col)
+        d.polygon([
+            (rx1, ty - t_h), (rx1 + t_len, ty + t_h * 2),
+            (rx1 + t_len, ty + t_h * 3), (rx1, ty + t_h),
+        ], fill=col)
+    img = add_shape(img, draw_temples, NEAR_BLACK)
+
     save(img, path)
 
 
@@ -142,6 +155,19 @@ def gen_wayfarer(path):
     def draw_bridge(d, col):
         d.ellipse([cx - gap * 1.5, cy - 16 * s, cx + gap * 1.5, cy + 16 * s], fill=col)
     img = add_shape(img, draw_bridge, NEAR_BLACK)
+
+    # Temples (angled up from top-outer corner)
+    def draw_temples(d, col):
+        ty = top_y + 5 * s
+        d.polygon([
+            (lx0 - taper, ty), (lx0 - taper - t_len, ty - t_h * 2),
+            (lx0 - taper - t_len, ty + t_h), (lx0 - taper, ty + t_h * 2),
+        ], fill=col)
+        d.polygon([
+            (rx1 + taper, ty), (rx1 + taper + t_len, ty - t_h * 2),
+            (rx1 + taper + t_len, ty + t_h), (rx1 + taper, ty + t_h * 2),
+        ], fill=col)
+    img = add_shape(img, draw_temples, NEAR_BLACK)
 
     save(img, path)
 
@@ -204,6 +230,22 @@ def gen_erika(path):
     def draw_bridge(d, col):
         d.ellipse([cx - gap * 1.3, cy - 12 * s, cx + gap * 1.3, cy + 12 * s], fill=col)
     img = add_shape(img, draw_bridge, AMBER)
+
+    # Temples (sweep upward – cat-eye style)
+    def draw_temples(d, col):
+        tl_x = min(x for x, y in lpts)
+        tl_y = min(y for x, y in lpts if x < lcx - lw // 4)
+        tr_x = max(x for x, y in rpts)
+        tr_y = min(y for x, y in rpts if x > rcx + lw // 4)
+        d.polygon([
+            (tl_x, tl_y), (tl_x - t_len, tl_y - t_h * 4),
+            (tl_x - t_len, tl_y - t_h * 4 + t_h * 2), (tl_x, tl_y + t_h),
+        ], fill=col)
+        d.polygon([
+            (tr_x, tr_y), (tr_x + t_len, tr_y - t_h * 4),
+            (tr_x + t_len, tr_y - t_h * 4 + t_h * 2), (tr_x, tr_y + t_h),
+        ], fill=col)
+    img = add_shape(img, draw_temples, AMBER)
 
     save(img, path)
 
