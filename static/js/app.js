@@ -102,32 +102,97 @@ function analyzeGlassesImage(productId, img) {
         ? `rgb(${Math.round(rS/cnt)},${Math.round(gS/cnt)},${Math.round(bS/cnt)})`
         : '#222222';
 
-    // 4. Lens tint color: sample centre region of each lens in the photo
-    const fpW = rightHinge - leftHinge;
-    const leftLcx = Math.round(leftHinge + fpW * 0.26);
+    // 4. Build lens OffscreenCanvas: flood-fill from lens centres + inpaint enclosed stubs
+    const DARK_THR = 80;
+    const fpW    = rightHinge - leftHinge;
+    const leftLcx  = Math.round(leftHinge + fpW * 0.26);
     const rightLcx = Math.round(leftHinge + fpW * 0.74);
     const lcy = Math.round(h * 0.55);
-    let lr=0, lg=0, lb=0, lc=0;
-    const SR = 15;
-    for (let dy = -SR; dy <= SR; dy++)
-        for (let dx = -SR; dx <= SR; dx++)
-            for (const cx of [leftLcx + dx, rightLcx + dx]) {
-                const cy = lcy + dy;
-                if (cy < 0 || cy >= h || cx < 0 || cx >= w) continue;
-                const i = (cy * w + cx) * 4;
-                if (data[i + 3] < 128) continue;
-                lr += data[i]; lg += data[i+1]; lb += data[i+2]; lc++;
+
+    const lensMask = new Uint8Array(w * h);
+    const ffVisited = new Uint8Array(w * h);
+
+    function floodFillLens(sx, sy) {
+        if (sy < 0 || sy >= h || sx < 0 || sx >= w) return;
+        const si = sy * w + sx;
+        const di = si * 4;
+        if (data[di + 3] < 128 || data[di] + data[di+1] + data[di+2] <= DARK_THR) return;
+        const queue = [[sy, sx]];
+        ffVisited[si] = 1;
+        while (queue.length) {
+            const [cy, cx] = queue.pop();
+            lensMask[cy * w + cx] = 1;
+            for (const [dy, dx] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+                const ny = cy+dy, nx = cx+dx;
+                if (ny < 0 || ny >= h || nx < 0 || nx >= w) continue;
+                const ni = ny * w + nx;
+                if (ffVisited[ni]) continue;
+                ffVisited[ni] = 1;
+                const ndi = ni * 4;
+                if (data[ndi+3] > 128 && data[ndi]+data[ndi+1]+data[ndi+2] > DARK_THR)
+                    queue.push([ny, nx]);
             }
-    const lens_color = lc > 0
-        ? `rgba(${Math.round(lr/lc)},${Math.round(lg/lc)},${Math.round(lb/lc)},0.82)`
-        : 'rgba(80,60,40,0.82)';
+        }
+    }
+    floodFillLens(leftLcx, lcy);
+    floodFillLens(rightLcx, lcy);
+
+    // Stub pixels: dark opaque, adjacent to a lens pixel (BFS expand)
+    const stubMask = new Uint8Array(w * h);
+    const stubQ = [];
+    for (let y = 1; y < h-1; y++)
+        for (let x = 1; x < w-1; x++) {
+            const i = y*w+x, di = i*4;
+            if (lensMask[i] || data[di+3] < 128 || data[di]+data[di+1]+data[di+2] > DARK_THR) continue;
+            if (lensMask[(y-1)*w+x] || lensMask[(y+1)*w+x] || lensMask[y*w+x-1] || lensMask[y*w+x+1])
+                { stubMask[i] = 1; stubQ.push([y, x]); }
+        }
+    for (let qi = 0; qi < stubQ.length; qi++) {
+        const [cy, cx] = stubQ[qi];
+        for (const [dy, dx] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+            const ny = cy+dy, nx = cx+dx;
+            if (ny < 0 || ny >= h || nx < 0 || nx >= w) continue;
+            const ni = ny*w+nx, ndi = ni*4;
+            if (stubMask[ni] || lensMask[ni] || data[ndi+3] < 128) continue;
+            if (data[ndi]+data[ndi+1]+data[ndi+2] > DARK_THR) continue;
+            stubMask[ni] = 1; stubQ.push([ny, nx]);
+        }
+    }
+
+    // Build lens pixel buffer: copy lens, inpaint stubs
+    const lensData = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+            const i = y*w+x;
+            if (!lensMask[i]) continue;
+            const di = i*4;
+            lensData[di]=data[di]; lensData[di+1]=data[di+1];
+            lensData[di+2]=data[di+2]; lensData[di+3]=data[di+3];
+        }
+    for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+            const i = y*w+x;
+            if (!stubMask[i]) continue;
+            let lc=null, rc=null;
+            for (let dx=1; dx<w; dx++) {
+                const lx=x-dx, rx=x+dx;
+                if (!lc && lx>=0 && lensMask[y*w+lx]) { const li=(y*w+lx)*4; lc=[lensData[li],lensData[li+1],lensData[li+2]]; }
+                if (!rc && rx<w  && lensMask[y*w+rx]) { const ri=(y*w+rx)*4; rc=[lensData[ri],lensData[ri+1],lensData[ri+2]]; }
+                if (lc&&rc) break;
+            }
+            const col = lc&&rc ? [(lc[0]+rc[0])/2,(lc[1]+rc[1])/2,(lc[2]+rc[2])/2] : lc||rc;
+            if (col) { const di=i*4; lensData[di]=col[0]; lensData[di+1]=col[1]; lensData[di+2]=col[2]; lensData[di+3]=255; }
+        }
+
+    const lensOC = new OffscreenCanvas(w, h);
+    lensOC.getContext('2d').putImageData(new ImageData(lensData, w, h), 0, 0);
 
     glassesParams[productId] = {
         lens_y_frac,
         left_hinge_frac:  leftHinge  / w,
         right_hinge_frac: rightHinge / w,
         arm_color,
-        lens_color,
+        lensCanvas: lensOC,
     };
 }
 
@@ -402,33 +467,20 @@ function drawGlassesOverlay(landmarks, m) {
     ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, drawHeight);
     ctx.restore();
 
-    // --- LENS FILL: sunglasses=tinted fill, optical=transparent hole ---
-    const lensW = pdPx * (product.lens_width / AVG_HUMAN_PD_MM);
-    const lensH = lensW * 0.88;
+    // --- LENS: use flood-fill extracted lensCanvas ---
+    const lensOC = params.lensCanvas;
     const isSunglasses = (product.type === 'sunglasses' || product.type === 'cat-eye');
-
-    ctx.save();
-    if (isSunglasses) {
-        // Fill lens ellipses with photo-detected tint → covers any stub artefacts
-        ctx.fillStyle = params.lens_color ?? 'rgba(80,60,40,0.82)';
-        ctx.beginPath();
-        ctx.ellipse(m.leftPupil.x,  m.leftPupil.y,  lensW/2, lensH/2, angle, 0, Math.PI*2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.ellipse(m.rightPupil.x, m.rightPupil.y, lensW/2, lensH/2, angle, 0, Math.PI*2);
-        ctx.fill();
-    } else {
-        // Optical: erase lens area so face shows through
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.fillStyle = 'rgba(0,0,0,1)';
-        ctx.beginPath();
-        ctx.ellipse(m.leftPupil.x,  m.leftPupil.y,  lensW/2, lensH/2, angle, 0, Math.PI*2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.ellipse(m.rightPupil.x, m.rightPupil.y, lensW/2, lensH/2, angle, 0, Math.PI*2);
-        ctx.fill();
+    if (lensOC) {
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(angle);
+        if (!isSunglasses) {
+            // Optical: erase lens area so face shows through
+            ctx.globalCompositeOperation = 'destination-out';
+        }
+        ctx.drawImage(lensOC, -drawWidth / 2, imgTop, drawWidth, drawHeight);
+        ctx.restore();
     }
-    ctx.restore();
 }
 
 function drawDefaultOverlay(m) {
