@@ -70,7 +70,11 @@ def serve_glasses(filename: str):
     filepath = BASE_DIR / "static" / "glasses" / filename
     if not filepath.exists() or not filepath.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
-    return Response(content=filepath.read_bytes(), media_type="image/png")
+    return Response(
+        content=filepath.read_bytes(),
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )
 
 # -----------------------------
 # Pages
