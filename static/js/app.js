@@ -345,24 +345,22 @@ function drawGlassesOverlay(landmarks, m) {
     const leftHingeX  = centerX - halfFrame * cos_a;
     const leftHingeY  = centerY - halfFrame * sin_a;
 
-    // --- ARMS: hinge → temple landmark (drawn first, behind the frame photo) ---
+    // --- FRAME PHOTO (full image, no clip) ---
+    const imgTop = -lensYFrac * drawHeight;
     ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(angle);
+    ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, drawHeight);
+    ctx.restore();
+
+    // --- ARMS drawn BEHIND frame photo (destination-over: only shows where canvas is transparent) ---
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-over';
     ctx.strokeStyle = armColor;
     ctx.lineWidth   = armThickness;
     ctx.lineCap     = 'round';
     ctx.beginPath(); ctx.moveTo(rightHingeX, rightHingeY); ctx.lineTo(m.rightTemple.x, m.rightTemple.y); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(leftHingeX,  leftHingeY);  ctx.lineTo(m.leftTemple.x,  m.leftTemple.y);  ctx.stroke();
-    ctx.restore();
-
-    // --- FRAME PHOTO clipped to frame-front area (covers arm roots) ---
-    const imgTop = -lensYFrac * drawHeight;
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.rotate(angle);
-    ctx.beginPath();
-    ctx.rect(-halfFrame, imgTop, halfFrame * 2, drawHeight);
-    ctx.clip();
-    ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, drawHeight);
     ctx.restore();
 }
 
