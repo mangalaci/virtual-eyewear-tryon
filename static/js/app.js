@@ -7,6 +7,7 @@ let animationFrameId = null;
 let products = [];
 let selectedProductId = null;
 let glassesImages = {};
+let glassesParams = {};   // auto-detected per image: { lens_y_frac }
 let latestMeasurements = null;
 
 // Smoothing buffer for measurements
@@ -55,9 +56,29 @@ async function loadProducts() {
 function preloadGlassesImages() {
     for (const p of products) {
         const img = new Image();
+        img.onload = () => analyzeGlassesImage(p.id, img);
         img.src = `/glasses/${p.image}`;
         glassesImages[p.id] = img;
     }
+}
+
+function analyzeGlassesImage(productId, img) {
+    const w = img.naturalWidth, h = img.naturalHeight;
+    const oc = new OffscreenCanvas(w, h);
+    const octx = oc.getContext('2d');
+    octx.drawImage(img, 0, 0);
+    const data = octx.getImageData(0, 0, w, h).data;
+
+    // Vertical center of mass of opaque pixels → lens_y_frac
+    let totalW = 0, ySum = 0;
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const a = data[(y * w + x) * 4 + 3];
+            if (a > 128) { totalW += a; ySum += y * a; }
+        }
+    }
+    const lens_y_frac = totalW > 0 ? (ySum / totalW) / h : 0.5;
+    glassesParams[productId] = { lens_y_frac };
 }
 
 function renderProductGrid() {
@@ -252,91 +273,74 @@ function updateMeasurementDisplay(m) {
 }
 
 // --- Glasses Overlay ---
+// Average human PD used as physical reference for scaling.
+const AVG_HUMAN_PD_MM = 63;
+
 function drawGlassesOverlay(landmarks, m) {
-    if (!selectedProductId) {
-        drawDefaultOverlay(m);
-        return;
-    }
+    if (!selectedProductId) { drawDefaultOverlay(m); return; }
 
     const img = glassesImages[selectedProductId];
-    if (!img || !img.complete || img.naturalWidth === 0) {
-        drawDefaultOverlay(m);
-        return;
-    }
+    if (!img || !img.complete || img.naturalWidth === 0) { drawDefaultOverlay(m); return; }
 
-    const w = canvas.width, h = canvas.height;
-
-    // --- SIZE ---
-    // Use the product's physical dimensions (mm) and the iris-calibrated px/mm scale.
-    // frame front width = lens_width × 2 + bridge_width (from products.json)
     const product = products.find(p => p.id === selectedProductId);
-    const frameFrontMm = (product.lens_width * 2) + product.bridge_width;
-    // glassesWidth = physical frame-front width in canvas px (also used for hinge offset)
-    const glassesWidth = frameFrontMm * m.pxPerMm * 1.2;
-    // frame_fill_ratio: fraction of the PNG width occupied by the frame front.
-    // Divide to get the total draw width so the frame front renders at the correct size.
-    const frameFillRatio = product.frame_fill_ratio ?? 0.455;
-    const drawWidth = glassesWidth / frameFillRatio;
-    const glassesHeight = drawWidth * (img.naturalHeight / img.naturalWidth);
 
-    // Center between pupils
+    // --- SIZE: scale so the frame front matches the face proportionally ---
+    // drawWidth = the pixel width the frame-front should occupy on screen.
+    // We derive it from pdPx (inter-pupil pixels) and the product's physical dimensions.
+    const frameFrontMm = (product.lens_width * 2) + product.bridge_width;
+    const pdPx = Math.hypot(m.rightPupil.x - m.leftPupil.x, m.rightPupil.y - m.leftPupil.y);
+    const frameWidth = pdPx * (frameFrontMm / AVG_HUMAN_PD_MM);
+
+    // The product photo is wider than the frame front (arms in image).
+    // PHOTO_FRAME_RATIO: approx fraction of image width that is frame front (not arms).
+    const PHOTO_FRAME_RATIO = 0.80;
+    const drawWidth  = frameWidth / PHOTO_FRAME_RATIO;
+    const drawHeight = drawWidth * (img.naturalHeight / img.naturalWidth);
+
+    // --- POSITION ---
     const centerX = (m.leftPupil.x + m.rightPupil.x) / 2;
     const centerY = (m.leftPupil.y + m.rightPupil.y) / 2;
+    const angle   = Math.atan2(m.rightPupil.y - m.leftPupil.y,
+                                m.rightPupil.x - m.leftPupil.x);
 
-    // Roll: tilt of the head left/right
-    const angle = Math.atan2(m.rightPupil.y - m.leftPupil.y, m.rightPupil.x - m.leftPupil.x);
+    // lens_y_frac: auto-detected from image pixels (vertical centre of mass of opaque pixels).
+    const lensYFrac = glassesParams[selectedProductId]?.lens_y_frac ?? 0.5;
 
-    // Per-product vertical offset: lens_y_frac tells where in the image the lens
-    // centres sit (0 = top, 1 = bottom). Default 0.5 = image centre.
-    const lensYFrac = product?.lens_y_frac ?? 0.5;
+    // --- ARMS (drawn first so frame image covers the roots) ---
+    // Hinge = outer edge of frame front at pupil height
+    const halfFrame = frameWidth / 2;
+    const cos_a = Math.cos(angle), sin_a = Math.sin(angle);
+    const rightHingeX = centerX + halfFrame * cos_a;
+    const rightHingeY = centerY + halfFrame * sin_a;
+    const leftHingeX  = centerX - halfFrame * cos_a;
+    const leftHingeY  = centerY - halfFrame * sin_a;
 
-    const cos_a = Math.cos(angle);
-    const sin_a = Math.sin(angle);
-
-    // Hinge position: outer edge of frame front, at hinge_y_frac height in the image
-    const hingeYFrac = product.hinge_y_frac ?? 0.10;
-    const hinge_y_rot = -(lensYFrac - hingeYFrac) * glassesHeight;
-
-    const rightHingeX = centerX + (glassesWidth / 2) * cos_a - hinge_y_rot * sin_a;
-    const rightHingeY = centerY + (glassesWidth / 2) * sin_a + hinge_y_rot * cos_a;
-    const leftHingeX  = centerX - (glassesWidth / 2) * cos_a - hinge_y_rot * sin_a;
-    const leftHingeY  = centerY - (glassesWidth / 2) * sin_a + hinge_y_rot * cos_a;
-
-    // --- Temple arms (drawn FIRST, frame image drawn on top to cover arm roots) ---
-    // Arms extend outward from hinges at a slight downward angle (~8°),
-    // like real arms going toward the ear in a frontal view.
-    const armLength = glassesWidth * 0.45;
-    const armTilt = 0.14; // radians downward (~8°)
-    const rightArmEndX = rightHingeX + armLength * Math.cos(angle + armTilt);
-    const rightArmEndY = rightHingeY + armLength * Math.sin(angle + armTilt);
-    const leftArmEndX  = leftHingeX  - armLength * Math.cos(angle - armTilt);
-    const leftArmEndY  = leftHingeY  - armLength * Math.sin(angle - armTilt);
-
-    const armWidth = Math.max(3, glassesHeight * 0.06);
+    // Arm direction: always OUTWARD from center (robust against any angle value).
+    const armLength = pdPx * 0.8;
+    const armW = Math.max(3, drawHeight * 0.055);
     ctx.save();
-    ctx.strokeStyle = product.color || "#222222";
-    ctx.lineWidth = armWidth;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(rightHingeX, rightHingeY);
-    ctx.lineTo(rightArmEndX, rightArmEndY);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(leftHingeX, leftHingeY);
-    ctx.lineTo(leftArmEndX, leftArmEndY);
-    ctx.stroke();
+    ctx.strokeStyle = product.color || '#222222';
+    ctx.lineWidth = armW;
+    ctx.lineCap = 'round';
+    for (const [hx, hy] of [[rightHingeX, rightHingeY], [leftHingeX, leftHingeY]]) {
+        const dx = hx - centerX, dy = hy - centerY;
+        const len = Math.hypot(dx, dy) || 1;
+        ctx.beginPath();
+        ctx.moveTo(hx, hy);
+        ctx.lineTo(hx + (dx / len) * armLength, hy + (dy / len) * armLength);
+        ctx.stroke();
+    }
     ctx.restore();
 
-    // --- Frame image, clipped to frame-front area (hides the arms in the product photo) ---
-    const clipHalfW = (frameFillRatio * drawWidth) / 2;
-    const imgTop = -lensYFrac * glassesHeight;
+    // --- FRAME IMAGE clipped to frame-front area (hides arm portions of photo) ---
+    const imgTop = -lensYFrac * drawHeight;
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate(angle);
     ctx.beginPath();
-    ctx.rect(-clipHalfW, imgTop, clipHalfW * 2, glassesHeight);
+    ctx.rect(-halfFrame, imgTop, halfFrame * 2, drawHeight);
     ctx.clip();
-    ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, glassesHeight);
+    ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, drawHeight);
     ctx.restore();
 }
 
