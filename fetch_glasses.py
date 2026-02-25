@@ -31,7 +31,7 @@ PRODUCTS = [
     },
     {
         "id": "rayban-erika",
-        "url": "https://eoptika.hu/ray-ban-napszemuveg-rb-4171-865-13-54",
+        "url": "https://eoptika.hu/ray-ban-napszemuveg-rb-4171-86513-54",
         "out": "static/glasses/rayban_erika.png",
     },
 ]

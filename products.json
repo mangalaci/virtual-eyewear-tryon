@@ -8,9 +8,9 @@
     "temple_length": 145,
     "color": "#1a1a1a",
     "image": "rayban_clubmaster.png",
-    "lens_y_frac": 0.73,
+    "lens_y_frac": 0.65,
     "hinge_y_frac": 0.05,
-    "frame_fill_ratio": 0.455,
+    "frame_fill_ratio": 0.87,
     "description": "Ikonikus Clubmaster optikai keret, fekete/arany.",
     "source_url": "https://eoptika.hu/ray-ban-szemuvegkeret-rx-5154-2000-51"
   },
@@ -23,9 +23,9 @@
     "temple_length": 150,
     "color": "#1a1a1a",
     "image": "rayban_wayfarer.png",
-    "lens_y_frac": 0.70,
+    "lens_y_frac": 0.40,
     "hinge_y_frac": 0.10,
-    "frame_fill_ratio": 0.457,
+    "frame_fill_ratio": 0.74,
     "description": "A világ leghíresebb napszemüvege, klasszikus fekete.",
     "source_url": "https://eoptika.hu/ray-ban-napszemuveg-rb-2140-901-50"
   },
@@ -38,9 +38,9 @@
     "temple_length": 145,
     "color": "#c97c5d",
     "image": "rayban_erika.png",
-    "lens_y_frac": 0.60,
+    "lens_y_frac": 0.55,
     "hinge_y_frac": 0.12,
-    "frame_fill_ratio": 0.462,
+    "frame_fill_ratio": 0.77,
     "description": "Cat-eye napszemüveg, tortoiseshell kerettel.",
     "source_url": "https://eoptika.hu/ray-ban-napszemuveg-rb-4171-86513-54"
   }
