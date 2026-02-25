@@ -69,16 +69,45 @@ function analyzeGlassesImage(productId, img) {
     octx.drawImage(img, 0, 0);
     const data = octx.getImageData(0, 0, w, h).data;
 
-    // Vertical center of mass of opaque pixels → lens_y_frac
+    // 1. Vertical center of mass → lens_y_frac
     let totalW = 0, ySum = 0;
-    for (let y = 0; y < h; y++) {
+    for (let y = 0; y < h; y++)
         for (let x = 0; x < w; x++) {
             const a = data[(y * w + x) * 4 + 3];
             if (a > 128) { totalW += a; ySum += y * a; }
         }
-    }
     const lens_y_frac = totalW > 0 ? (ySum / totalW) / h : 0.5;
-    glassesParams[productId] = { lens_y_frac };
+
+    // 2. Column opaque heights → hinge positions
+    const colH = new Array(w).fill(0);
+    for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++)
+            if (data[(y * w + x) * 4 + 3] > 128) colH[x]++;
+    const maxH = Math.max(...colH);
+    const thr = maxH * 0.5;
+    let leftHinge = 0;
+    for (let x = 0; x < w / 2; x++) { if (colH[x] > thr) { leftHinge = x; break; } }
+    let rightHinge = w - 1;
+    for (let x = w - 1; x > w / 2; x--) { if (colH[x] > thr) { rightHinge = x; break; } }
+
+    // 3. Arm color: average RGB of arm stub pixels (outside hinges)
+    let rS = 0, gS = 0, bS = 0, cnt = 0;
+    for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++)
+            if ((x < leftHinge || x > rightHinge) && data[(y * w + x) * 4 + 3] > 128) {
+                const i = (y * w + x) * 4;
+                rS += data[i]; gS += data[i + 1]; bS += data[i + 2]; cnt++;
+            }
+    const arm_color = cnt > 0
+        ? `rgb(${Math.round(rS/cnt)},${Math.round(gS/cnt)},${Math.round(bS/cnt)})`
+        : '#222222';
+
+    glassesParams[productId] = {
+        lens_y_frac,
+        left_hinge_frac:  leftHinge  / w,
+        right_hinge_frac: rightHinge / w,
+        arm_color,
+    };
 }
 
 function renderProductGrid() {
@@ -303,14 +332,36 @@ function drawGlassesOverlay(landmarks, m) {
     const angle   = Math.atan2(m.rightPupil.y - m.leftPupil.y,
                                 m.rightPupil.x - m.leftPupil.x);
 
-    // lens_y_frac: auto-detected from image pixels (vertical centre of mass of opaque pixels).
-    const lensYFrac = glassesParams[selectedProductId]?.lens_y_frac ?? 0.5;
+    const params    = glassesParams[selectedProductId] ?? {};
+    const lensYFrac = params.lens_y_frac       ?? 0.5;
+    const armColor  = params.arm_color         ?? '#222222';
+    const armThickness = Math.max(6, drawHeight * 0.13);
 
-    // --- FRAME IMAGE: draw full product photo (arms are in the photo itself) ---
+    // Hinge points in canvas space (outer edges of frame front)
+    const halfFrame = frameWidth / 2;
+    const cos_a = Math.cos(angle), sin_a = Math.sin(angle);
+    const rightHingeX = centerX + halfFrame * cos_a;
+    const rightHingeY = centerY + halfFrame * sin_a;
+    const leftHingeX  = centerX - halfFrame * cos_a;
+    const leftHingeY  = centerY - halfFrame * sin_a;
+
+    // --- ARMS: hinge → temple landmark (drawn first, behind the frame photo) ---
+    ctx.save();
+    ctx.strokeStyle = armColor;
+    ctx.lineWidth   = armThickness;
+    ctx.lineCap     = 'round';
+    ctx.beginPath(); ctx.moveTo(rightHingeX, rightHingeY); ctx.lineTo(m.rightTemple.x, m.rightTemple.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(leftHingeX,  leftHingeY);  ctx.lineTo(m.leftTemple.x,  m.leftTemple.y);  ctx.stroke();
+    ctx.restore();
+
+    // --- FRAME PHOTO clipped to frame-front area (covers arm roots) ---
     const imgTop = -lensYFrac * drawHeight;
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.rect(-halfFrame, imgTop, halfFrame * 2, drawHeight);
+    ctx.clip();
     ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, drawHeight);
     ctx.restore();
 }
