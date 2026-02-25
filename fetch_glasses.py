@@ -110,16 +110,24 @@ def remove_background(img_bytes: bytes, threshold: int = 235) -> Image.Image:
                 visited[ny, nx] = True
                 queue.append((ny, nx))
 
-    # Union: near-white OR flood-fill region
+    # Union: near-white OR flood-fill region → transparent
     bg_mask = near_white | visited
     data[:, :, 3] = np.where(bg_mask, 0, 255)
 
+    # Also remove semi-transparent grey remnants (reflections, shadows):
+    # any pixel whose RGB average is > 160 AND alpha is still set → make transparent
+    grey_remnant = (r.astype(int) + g.astype(int) + b.astype(int)) / 3 > 160
+    data[:, :, 3] = np.where(grey_remnant & (data[:, :, 3] > 0), 0, data[:, :, 3])
+
     result = Image.fromarray(data, "RGBA")
 
-    # Trim to tight bounding box
-    bbox = result.getbbox()
-    if bbox:
-        result = result.crop(bbox)
+    # Trim to tight bounding box of fully-opaque pixels (ignores semi-transparent halo)
+    alpha = np.array(result)[:, :, 3]
+    opaque = np.argwhere(alpha > 128)
+    if len(opaque):
+        y0, x0 = opaque.min(axis=0)
+        y1, x1 = opaque.max(axis=0)
+        result = result.crop((x0, y0, x1 + 1, y1 + 1))
 
     return result
 
