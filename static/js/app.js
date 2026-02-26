@@ -56,20 +56,21 @@ async function loadProducts() {
 function preloadGlassesImages() {
     for (const p of products) {
         const img = new Image();
-        img.onload = () => analyzeGlassesImage(p.id, img);
+        img.onload = () => analyzeGlassesImage(p, img);
         img.src = `/glasses/${p.image}`;
         glassesImages[p.id] = img;
     }
 }
 
-function analyzeGlassesImage(productId, img) {
+function analyzeGlassesImage(product, img) {
+    const productId = product.id;
     const w = img.naturalWidth, h = img.naturalHeight;
     const oc = new OffscreenCanvas(w, h);
     const octx = oc.getContext('2d');
     octx.drawImage(img, 0, 0);
     const data = octx.getImageData(0, 0, w, h).data;
 
-    // 1. Vertical center of mass → lens_y_frac
+    // 1. Vertical centre of mass of opaque pixels → lens_y_frac
     let totalW = 0, ySum = 0;
     for (let y = 0; y < h; y++)
         for (let x = 0; x < w; x++) {
@@ -90,7 +91,7 @@ function analyzeGlassesImage(productId, img) {
     let rightHinge = w - 1;
     for (let x = w - 1; x > w / 2; x--) { if (colH[x] > thr) { rightHinge = x; break; } }
 
-    // 3. Arm color: average RGB of arm stub pixels (outside hinges)
+    // 3. Arm colour: average RGB of arm stub pixels (outside hinges)
     let rS = 0, gS = 0, bS = 0, cnt = 0;
     for (let y = 0; y < h; y++)
         for (let x = 0; x < w; x++)
@@ -102,86 +103,71 @@ function analyzeGlassesImage(productId, img) {
         ? `rgb(${Math.round(rS/cnt)},${Math.round(gS/cnt)},${Math.round(bS/cnt)})`
         : '#222222';
 
-    // 4. Build lens mask via flood-fill from lens centres
-    // DARK_THR=200: sum(R+G+B)<=200 treated as dark frame border → flood-fill stops there
-    const DARK_THR = 200;
-    const fpW      = rightHinge - leftHinge;
-    const leftLcx  = Math.round(leftHinge + fpW * 0.26);
-    const rightLcx = Math.round(leftHinge + fpW * 0.74);
-    const lcy      = Math.round(h * 0.55);
-
-    const lensMask = new Uint8Array(w * h);
-    const ffVisited = new Uint8Array(w * h);
-
-    function floodFillLens(sx, sy) {
-        if (sy < 0 || sy >= h || sx < 0 || sx >= w) return;
-        const si = sy * w + sx;
-        const di = si * 4;
-        if (data[di + 3] < 128 || data[di] + data[di+1] + data[di+2] <= DARK_THR) return;
-        const queue = [[sy, sx]];
-        ffVisited[si] = 1;
-        while (queue.length) {
-            const [cy, cx] = queue.pop();
-            lensMask[cy * w + cx] = 1;
+    // 4. Build gradient lensCanvas from the interior transparent holes in the PNG.
+    //    Python (process_lenses.py) already made the lens area transparent.
+    //    BFS from image edges identifies exterior transparent pixels;
+    //    remaining transparent pixels = interior lens holes → fill with gradient.
+    let lensOC = null;
+    if (product.lens_top && product.lens_bot) {
+        const extMark = new Uint8Array(w * h);
+        const extBFS  = [];
+        // Seed boundary transparent pixels
+        for (let x = 0; x < w; x++) {
+            if (data[x * 4 + 3] < 128 && !extMark[x])
+                { extMark[x] = 1; extBFS.push(x); }
+            const bi = (h - 1) * w + x;
+            if (data[bi * 4 + 3] < 128 && !extMark[bi])
+                { extMark[bi] = 1; extBFS.push(bi); }
+        }
+        for (let y = 0; y < h; y++) {
+            if (data[y * w * 4 + 3] < 128 && !extMark[y * w])
+                { extMark[y * w] = 1; extBFS.push(y * w); }
+            const ri = y * w + (w - 1);
+            if (data[ri * 4 + 3] < 128 && !extMark[ri])
+                { extMark[ri] = 1; extBFS.push(ri); }
+        }
+        for (let qi = 0; qi < extBFS.length; qi++) {
+            const idx = extBFS[qi];
+            const cy = Math.floor(idx / w), cx = idx % w;
             for (const [dy, dx] of [[-1,0],[1,0],[0,-1],[0,1]]) {
                 const ny = cy+dy, nx = cx+dx;
                 if (ny < 0 || ny >= h || nx < 0 || nx >= w) continue;
                 const ni = ny * w + nx;
-                if (ffVisited[ni]) continue;
-                ffVisited[ni] = 1;
-                const ndi = ni * 4;
-                if (data[ndi+3] > 128 && data[ndi]+data[ndi+1]+data[ndi+2] > DARK_THR)
-                    queue.push([ny, nx]);
+                if (!extMark[ni] && data[ni * 4 + 3] < 128)
+                    { extMark[ni] = 1; extBFS.push(ni); }
             }
         }
+        // Interior holes = transparent AND not exterior-reachable
+        const lensMask = new Uint8Array(w * h);
+        let lensCount = 0;
+        for (let i = 0; i < w * h; i++)
+            if (data[i * 4 + 3] < 128 && !extMark[i]) { lensMask[i] = 1; lensCount++; }
+
+        if (lensCount > 0) {
+            let yMin = h, yMax = 0;
+            for (let y = 0; y < h; y++)
+                for (let x = 0; x < w; x++)
+                    if (lensMask[y * w + x]) { if (y < yMin) yMin = y; if (y > yMax) yMax = y; }
+
+            const topColor = product.lens_top;
+            const botColor = product.lens_bot;
+            const lensData = new Uint8ClampedArray(w * h * 4);
+            const lensRange = Math.max(1, yMax - yMin);
+            for (let y = 0; y < h; y++)
+                for (let x = 0; x < w; x++) {
+                    const i = y * w + x;
+                    if (!lensMask[i]) continue;
+                    const t  = Math.max(0, Math.min(1, (y - yMin) / lensRange));
+                    const di = i * 4;
+                    lensData[di]   = Math.round(topColor[0] * (1-t) + botColor[0] * t);
+                    lensData[di+1] = Math.round(topColor[1] * (1-t) + botColor[1] * t);
+                    lensData[di+2] = Math.round(topColor[2] * (1-t) + botColor[2] * t);
+                    lensData[di+3] = 255;
+                }
+            lensOC = new OffscreenCanvas(w, h);
+            lensOC.getContext('2d').putImageData(new ImageData(lensData, w, h), 0, 0);
+        }
     }
-    floodFillLens(leftLcx, lcy);
-    floodFillLens(rightLcx, lcy);
-
-    // 5. Sample authentic lens colour from the central strip (away from hinges/stubs)
-    let yMin = h, yMax = 0;
-    for (let y = 0; y < h; y++)
-        for (let x = leftHinge; x <= rightHinge; x++)
-            if (lensMask[y*w+x]) { if (y < yMin) yMin = y; if (y > yMax) yMax = y; }
-
-    const sampleX1 = Math.round(leftHinge + fpW * 0.35);
-    const sampleX2 = Math.round(leftHinge + fpW * 0.65);
-    const topBand  = Math.round(yMin + (yMax - yMin) * 0.3);
-    const botBand  = Math.round(yMin + (yMax - yMin) * 0.7);
-
-    let rT=0, gT=0, bT=0, cT=0, rB=0, gB=0, bB=0, cB=0;
-    for (let y = yMin; y <= topBand; y++)
-        for (let x = sampleX1; x <= sampleX2; x++) {
-            if (!lensMask[y*w+x]) continue;
-            const di = (y*w+x)*4;
-            rT += data[di]; gT += data[di+1]; bT += data[di+2]; cT++;
-        }
-    for (let y = botBand; y <= yMax; y++)
-        for (let x = sampleX1; x <= sampleX2; x++) {
-            if (!lensMask[y*w+x]) continue;
-            const di = (y*w+x)*4;
-            rB += data[di]; gB += data[di+1]; bB += data[di+2]; cB++;
-        }
-    const topColor = cT > 0 ? [rT/cT, gT/cT, bT/cT] : [200, 150, 60];
-    const botColor = cB > 0 ? [rB/cB, gB/cB, bB/cB] : [120,  80, 30];
-
-    // 6. Build gradient-filled lensCanvas: correct shape, clean gradient, no stub artefacts
-    const lensData = new Uint8ClampedArray(w * h * 4);
-    const lensRange = Math.max(1, yMax - yMin);
-    for (let y = 0; y < h; y++)
-        for (let x = 0; x < w; x++) {
-            const i = y*w+x;
-            if (!lensMask[i]) continue;
-            const t  = Math.max(0, Math.min(1, (y - yMin) / lensRange));
-            const di = i*4;
-            lensData[di]   = Math.round(topColor[0]*(1-t) + botColor[0]*t);
-            lensData[di+1] = Math.round(topColor[1]*(1-t) + botColor[1]*t);
-            lensData[di+2] = Math.round(topColor[2]*(1-t) + botColor[2]*t);
-            lensData[di+3] = 215; // slightly transparent — tinted lens feel
-        }
-
-    const lensOC = new OffscreenCanvas(w, h);
-    lensOC.getContext('2d').putImageData(new ImageData(lensData, w, h), 0, 0);
 
     glassesParams[productId] = {
         lens_y_frac,
@@ -456,27 +442,25 @@ function drawGlassesOverlay(landmarks, m) {
     ctx.beginPath(); ctx.moveTo(leftHingeX,  leftHingeY);  ctx.lineTo(m.leftTemple.x,  m.leftTemple.y);  ctx.stroke();
     ctx.restore();
 
-    // --- FRAME PHOTO drawn on top (covers arm roots, full image no clip) ---
+    // --- LENS GRADIENT drawn BEFORE frame photo ---
+    // Python made the lens area transparent in the PNG; the gradient fills those holes.
+    // Drawing it first means the frame photo (drawn next) covers the frame ring but
+    // lets the gradient show through the transparent lens area.
+    const lensOC = params.lensCanvas;
+    if (lensOC) {
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(angle);
+        ctx.drawImage(lensOC, -drawWidth / 2, imgTop, drawWidth, drawHeight);
+        ctx.restore();
+    }
+
+    // --- FRAME PHOTO on top (transparent lens → gradient shows through) ---
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate(angle);
     ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, drawHeight);
     ctx.restore();
-
-    // --- LENS: use flood-fill extracted lensCanvas ---
-    const lensOC = params.lensCanvas;
-    const isSunglasses = (product.type === 'sunglasses' || product.type === 'cat-eye');
-    if (lensOC) {
-        ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.rotate(angle);
-        if (!isSunglasses) {
-            // Optical: erase lens area so face shows through
-            ctx.globalCompositeOperation = 'destination-out';
-        }
-        ctx.drawImage(lensOC, -drawWidth / 2, imgTop, drawWidth, drawHeight);
-        ctx.restore();
-    }
 }
 
 function drawDefaultOverlay(m) {

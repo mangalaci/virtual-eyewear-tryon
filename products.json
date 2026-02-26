@@ -12,7 +12,9 @@
     "hinge_y_frac": 0.05,
     "frame_fill_ratio": 0.87,
     "description": "Ikonikus Clubmaster optikai keret, fekete/arany.",
-    "source_url": "https://eoptika.hu/ray-ban-szemuvegkeret-rx-5154-2000-51"
+    "source_url": "https://eoptika.hu/ray-ban-szemuvegkeret-rx-5154-2000-51",
+    "lens_top": null,
+    "lens_bot": null
   },
   {
     "id": "rayban-wayfarer",
@@ -23,11 +25,21 @@
     "temple_length": 150,
     "color": "#1a1a1a",
     "image": "rayban_wayfarer.png",
-    "lens_y_frac": 0.50,
-    "hinge_y_frac": 0.10,
+    "lens_y_frac": 0.5,
+    "hinge_y_frac": 0.1,
     "frame_fill_ratio": 0.74,
     "description": "A világ leghíresebb napszemüvege, klasszikus fekete.",
-    "source_url": "https://eoptika.hu/ray-ban-napszemuveg-rb-2140-901-50"
+    "source_url": "https://eoptika.hu/ray-ban-napszemuveg-rb-2140-901-50",
+    "lens_top": [
+      79,
+      80,
+      76
+    ],
+    "lens_bot": [
+      76,
+      78,
+      69
+    ]
   },
   {
     "id": "rayban-erika",
@@ -42,6 +54,16 @@
     "hinge_y_frac": 0.12,
     "frame_fill_ratio": 0.77,
     "description": "Cat-eye napszemüveg, tortoiseshell kerettel.",
-    "source_url": "https://eoptika.hu/ray-ban-napszemuveg-rb-4171-86513-54"
+    "source_url": "https://eoptika.hu/ray-ban-napszemuveg-rb-4171-86513-54",
+    "lens_top": [
+      118,
+      84,
+      51
+    ],
+    "lens_bot": [
+      172,
+      152,
+      134
+    ]
   }
 ]
