@@ -14,6 +14,35 @@ PRODUCTS_FILE = BASE / "products.json"
 DARK_THR = 200  # sum(R+G+B) <= this = dark border pixel, flood-fill stops here
 
 
+def expand_lens_transparency(rgba: np.ndarray, left_hinge: int, right_hinge: int,
+                             iterations: int = 12) -> int:
+    """
+    Dilate the transparent region by `iterations` pixels, but only within
+    the hinge x-range.  This absorbs arm-stub pixels that are connected to the
+    frame ring (and therefore not caught by erase_enclosed_opaque).
+    Returns count of newly-transparent pixels.
+    """
+    h, w = rgba.shape[:2]
+    total = 0
+    for _ in range(iterations):
+        transparent = rgba[:, :, 3] < 128
+        # 4-connected neighbours of transparent pixels
+        nbr = np.zeros((h, w), dtype=bool)
+        nbr[:-1, :] |= transparent[1:, :]
+        nbr[1:,  :] |= transparent[:-1, :]
+        nbr[:, :-1] |= transparent[:, 1:]
+        nbr[:, 1:]  |= transparent[:, :-1]
+        # New transparent = opaque neighbour of transparent, within hinge range
+        new_t = nbr & (rgba[:, :, 3] > 128)
+        new_t[:, :left_hinge]    = False
+        new_t[:, right_hinge+1:] = False
+        if not new_t.any():
+            break
+        rgba[new_t, 3] = 0
+        total += int(new_t.sum())
+    return total
+
+
 def erase_enclosed_opaque(rgba: np.ndarray) -> int:
     """
     BFS from exterior opaque pixels (boundary-connected).
@@ -165,12 +194,26 @@ def main():
             p["lens_bot"] = None
             changed = True
 
-        # Always erase enclosed opaque islands (arm stubs inside the now-transparent lens)
+        # Step A: erase enclosed opaque islands (arm stubs not touching the frame ring)
         img2 = Image.open(png_path).convert("RGBA")
         arr2 = np.array(img2, dtype=np.uint8)
-        n = erase_enclosed_opaque(arr2)
-        print(f"  Enclosed arm-stub pixels erased: {n}")
-        if n > 0:
+        n_enclosed = erase_enclosed_opaque(arr2)
+        print(f"  Enclosed arm-stub pixels erased: {n_enclosed}")
+
+        # Step B: dilate transparent lens region to absorb frame-connected arm stubs
+        col_h2 = (arr2[:, :, 3] > 128).sum(axis=0)
+        max_h2 = int(col_h2.max())
+        if max_h2 > 0:
+            thr2 = max_h2 * 0.5
+            lh = next((x for x in range(len(col_h2) // 2) if col_h2[x] > thr2), 0)
+            rh = next((x for x in range(len(col_h2) - 1, len(col_h2) // 2, -1)
+                       if col_h2[x] > thr2), len(col_h2) - 1)
+            n_expand = expand_lens_transparency(arr2, lh, rh, iterations=12)
+            print(f"  Expanded transparency by: {n_expand} pixels  (hinges {lh}..{rh})")
+        else:
+            n_expand = 0
+
+        if n_enclosed > 0 or n_expand > 0:
             Image.fromarray(arr2, "RGBA").save(png_path, "PNG")
             print(f"  Re-saved: {png_path.name}")
 
