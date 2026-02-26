@@ -14,6 +14,41 @@ PRODUCTS_FILE = BASE / "products.json"
 DARK_THR = 200  # sum(R+G+B) <= this = dark border pixel, flood-fill stops here
 
 
+def erase_enclosed_opaque(rgba: np.ndarray) -> int:
+    """
+    BFS from exterior opaque pixels (boundary-connected).
+    Any opaque pixel NOT reachable from exterior = enclosed island (arm stub in lens).
+    Make those pixels transparent.
+    Returns count of erased pixels.
+    """
+    h, w = rgba.shape[:2]
+    opaque = rgba[:, :, 3] > 128
+    visited = np.zeros((h, w), dtype=bool)
+    q = deque()
+
+    def seed(y, x):
+        if opaque[y, x] and not visited[y, x]:
+            visited[y, x] = True
+            q.append((y, x))
+
+    for x in range(w):
+        seed(0, x); seed(h - 1, x)
+    for y in range(h):
+        seed(y, 0); seed(y, w - 1)
+
+    while q:
+        cy, cx = q.popleft()
+        for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            ny, nx = cy + dy, cx + dx
+            if 0 <= ny < h and 0 <= nx < w and not visited[ny, nx] and opaque[ny, nx]:
+                visited[ny, nx] = True
+                q.append((ny, nx))
+
+    enclosed = opaque & ~visited
+    rgba[enclosed, 3] = 0
+    return int(enclosed.sum())
+
+
 def process_png(path: Path) -> tuple[list, list] | None:
     img = Image.open(path).convert("RGBA")
     rgba = np.array(img, dtype=np.uint8)
@@ -129,6 +164,15 @@ def main():
             p["lens_top"] = None
             p["lens_bot"] = None
             changed = True
+
+        # Always erase enclosed opaque islands (arm stubs inside the now-transparent lens)
+        img2 = Image.open(png_path).convert("RGBA")
+        arr2 = np.array(img2, dtype=np.uint8)
+        n = erase_enclosed_opaque(arr2)
+        print(f"  Enclosed arm-stub pixels erased: {n}")
+        if n > 0:
+            Image.fromarray(arr2, "RGBA").save(png_path, "PNG")
+            print(f"  Re-saved: {png_path.name}")
 
     if changed:
         PRODUCTS_FILE.write_text(
