@@ -66,35 +66,63 @@ def detect_hinges(opaque: np.ndarray) -> tuple[int, int]:
 
 def fill_lens_holes(rgba: np.ndarray, left_h: int, right_h: int) -> int:
     """
-    Use RETR_CCOMP contour hierarchy to find enclosed transparent regions
-    inside the frame ring.  Those are lens holes that may have been left
-    partially opaque by the morphological close step.  Make them transparent.
-    Returns number of pixels cleared.
+    Two-pass lens-hole clearing:
+
+    Pass 1 (RETR_CCOMP): find transparent holes enclosed by the opaque frame
+    ring – handles the normal case where HSV removal already cleared the lens.
+
+    Pass 2 (light-color blobs): find large, near-white *opaque* regions that
+    are fully enclosed inside the image (don't touch the border) and whose
+    centre falls within the hinge x-range.  These are clear-lens pixels that
+    survived the HSV threshold (e.g. slight anti-reflective coating tint).
+
+    Returns total pixels cleared.
     """
     h, w = rgba.shape[:2]
-    opaque_u8 = (rgba[:, :, 3] > 128).astype(np.uint8) * 255
+    min_area = (right_h - left_h) * h * 0.003   # 0.3 % of frame bbox
+    lens_mask = np.zeros((h, w), dtype=np.uint8)
 
+    # --- Pass 1: transparent holes in the opaque mask ---
+    opaque_u8 = (rgba[:, :, 3] > 128).astype(np.uint8) * 255
     contours, hierarchy = cv2.findContours(
         opaque_u8, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE
     )
-    if hierarchy is None or len(contours) == 0:
-        return 0
+    if hierarchy is not None and len(contours) > 0:
+        hier = hierarchy[0]
+        for i, h_info in enumerate(hier):
+            if h_info[3] < 0:
+                continue  # outer contour, not a hole
+            area = cv2.contourArea(contours[i])
+            if area < min_area:
+                continue
+            x, y, cw, ch = cv2.boundingRect(contours[i])
+            if left_h <= (x + cw // 2) <= right_h:
+                cv2.drawContours(lens_mask, [contours[i]], -1, 255, cv2.FILLED)
 
-    hierarchy = hierarchy[0]
-    min_area = (right_h - left_h) * h * 0.005   # 0.5% of frame area
+    # --- Pass 2: opaque near-white enclosed blobs (residual lens material) ---
+    img_bgr = cv2.cvtColor(rgba[:, :, :3], cv2.COLOR_RGB2BGR)
+    hsv     = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    _, s, v = cv2.split(hsv)
 
-    lens_mask = np.zeros((h, w), dtype=np.uint8)
-    for i, h_info in enumerate(hierarchy):
-        parent = h_info[3]
-        if parent < 0:
-            continue  # outer contour, not a hole
-        area = cv2.contourArea(contours[i])
+    opaque_bool = rgba[:, :, 3] > 128
+    near_white  = (v > 200) & (s < 40)          # very bright, nearly colourless
+    candidate   = (opaque_bool & near_white).astype(np.uint8)
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        candidate, connectivity=8
+    )
+    for lbl in range(1, num_labels):
+        area = int(stats[lbl, cv2.CC_STAT_AREA])
         if area < min_area:
             continue
-        x, y, cw, ch = cv2.boundingRect(contours[i])
-        cx = x + cw // 2
-        if left_h <= cx <= right_h:
-            cv2.drawContours(lens_mask, [contours[i]], -1, 255, cv2.FILLED)
+        cx_comp = int(stats[lbl, cv2.CC_STAT_LEFT] + stats[lbl, cv2.CC_STAT_WIDTH] // 2)
+        if not (left_h <= cx_comp <= right_h):
+            continue
+        comp = (labels == lbl).astype(np.uint8)
+        # Skip components that touch the image boundary (outer background remnant)
+        if comp[0].any() or comp[-1].any() or comp[:, 0].any() or comp[:, -1].any():
+            continue
+        lens_mask = cv2.bitwise_or(lens_mask, comp * 255)
 
     count = int((lens_mask > 0).sum())
     if count > 0:
