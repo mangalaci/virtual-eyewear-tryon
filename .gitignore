@@ -34,6 +34,9 @@ commit_out.txt
 *.log
 *.out
 
+# Raw (source) glasses images - not needed in repo, only processed PNGs
+static/glasses/raw/
+
 # Keep product images
 !static/glasses/*.png
 
