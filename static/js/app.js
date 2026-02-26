@@ -7,7 +7,7 @@ let animationFrameId = null;
 let products = [];
 let selectedProductId = null;
 let glassesImages = {};
-let glassesParams = {};   // auto-detected per image: { lens_y_frac }
+let glassesParams = {};   // auto-detected per image: { lens_y_frac, hinge fracs, arm_color }
 let latestMeasurements = null;
 
 // Smoothing buffer for measurements
@@ -103,78 +103,11 @@ function analyzeGlassesImage(product, img) {
         ? `rgb(${Math.round(rS/cnt)},${Math.round(gS/cnt)},${Math.round(bS/cnt)})`
         : '#222222';
 
-    // 4. Build gradient lensCanvas from transparent lens holes in the PNG.
-    //    Python (process_lenses.py) made the lens area transparent.
-    //    Flood-fill from the transparent lens-centre pixels, staying within
-    //    the hinge x-range so the fill cannot leak into the exterior background.
-    let lensOC = null;
-    if (product.lens_top && product.lens_bot) {
-        const fpW      = rightHinge - leftHinge;
-        const leftLcx  = Math.round(leftHinge + fpW * 0.26);
-        const rightLcx = Math.round(leftHinge + fpW * 0.74);
-        const lcy      = Math.round(h * 0.55);
-
-        const lensMask = new Uint8Array(w * h);
-        const ffVis    = new Uint8Array(w * h);
-
-        function fillHole(sx, sy) {
-            if (sx < leftHinge || sx > rightHinge || sy < 0 || sy >= h) return;
-            const si = sy * w + sx;
-            if (data[si * 4 + 3] > 128 || ffVis[si]) return; // opaque or visited
-            const queue = [si];
-            ffVis[si] = 1;
-            while (queue.length) {
-                const idx = queue.pop();
-                lensMask[idx] = 1;
-                const cy = Math.floor(idx / w), cx = idx % w;
-                for (const [dy, dx] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-                    const ny = cy+dy, nx = cx+dx;
-                    if (ny < 0 || ny >= h || nx < leftHinge || nx > rightHinge) continue;
-                    const ni = ny * w + nx;
-                    if (ffVis[ni]) continue;
-                    ffVis[ni] = 1;
-                    if (data[ni * 4 + 3] < 128) queue.push(ni); // transparent → expand
-                }
-            }
-        }
-        fillHole(leftLcx, lcy);
-        fillHole(rightLcx, lcy);
-
-        let lensCount = 0;
-        for (let i = 0; i < w * h; i++) if (lensMask[i]) lensCount++;
-
-        if (lensCount > 0) {
-            let yMin = h, yMax = 0;
-            for (let y = 0; y < h; y++)
-                for (let x = 0; x < w; x++)
-                    if (lensMask[y * w + x]) { if (y < yMin) yMin = y; if (y > yMax) yMax = y; }
-
-            const topColor  = product.lens_top;
-            const botColor  = product.lens_bot;
-            const lensData  = new Uint8ClampedArray(w * h * 4);
-            const lensRange = Math.max(1, yMax - yMin);
-            for (let y = 0; y < h; y++)
-                for (let x = 0; x < w; x++) {
-                    const i = y * w + x;
-                    if (!lensMask[i]) continue;
-                    const t  = Math.max(0, Math.min(1, (y - yMin) / lensRange));
-                    const di = i * 4;
-                    lensData[di]   = Math.round(topColor[0] * (1-t) + botColor[0] * t);
-                    lensData[di+1] = Math.round(topColor[1] * (1-t) + botColor[1] * t);
-                    lensData[di+2] = Math.round(topColor[2] * (1-t) + botColor[2] * t);
-                    lensData[di+3] = 255;
-                }
-            lensOC = new OffscreenCanvas(w, h);
-            lensOC.getContext('2d').putImageData(new ImageData(lensData, w, h), 0, 0);
-        }
-    }
-
     glassesParams[productId] = {
         lens_y_frac,
         left_hinge_frac:  leftHinge  / w,
         right_hinge_frac: rightHinge / w,
         arm_color,
-        lensCanvas: lensOC,
     };
 }
 
@@ -400,9 +333,9 @@ function drawGlassesOverlay(landmarks, m) {
     const angle   = Math.atan2(m.rightPupil.y - m.leftPupil.y,
                                 m.rightPupil.x - m.leftPupil.x);
 
-    const params    = glassesParams[selectedProductId] ?? {};
-    const lensYFrac = params.lens_y_frac       ?? 0.5;
-    const armColor  = params.arm_color         ?? '#222222';
+    const params       = glassesParams[selectedProductId] ?? {};
+    const lensYFrac    = params.lens_y_frac ?? 0.5;
+    const armColor     = params.arm_color   ?? '#222222';
     const armThickness = Math.max(6, drawHeight * 0.13);
 
     // Hinge points in canvas space (outer edges of frame front)
@@ -442,20 +375,7 @@ function drawGlassesOverlay(landmarks, m) {
     ctx.beginPath(); ctx.moveTo(leftHingeX,  leftHingeY);  ctx.lineTo(m.leftTemple.x,  m.leftTemple.y);  ctx.stroke();
     ctx.restore();
 
-    // --- LENS GRADIENT drawn BEFORE frame photo ---
-    // Python made the lens area transparent in the PNG; the gradient fills those holes.
-    // Drawing it first means the frame photo (drawn next) covers the frame ring but
-    // lets the gradient show through the transparent lens area.
-    const lensOC = params.lensCanvas;
-    if (lensOC) {
-        ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.rotate(angle);
-        ctx.drawImage(lensOC, -drawWidth / 2, imgTop, drawWidth, drawHeight);
-        ctx.restore();
-    }
-
-    // --- FRAME PHOTO on top (transparent lens → gradient shows through) ---
+    // --- FRAME PHOTO ---
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate(angle);
