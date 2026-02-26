@@ -314,31 +314,39 @@ function drawGlassesOverlay(landmarks, m) {
 
     const product = products.find(p => p.id === selectedProductId);
 
-    // --- SIZE: scale so the frame front matches the face proportionally ---
-    // drawWidth = the pixel width the frame-front should occupy on screen.
-    // We derive it from pdPx (inter-pupil pixels) and the product's physical dimensions.
-    const frameFrontMm = (product.lens_width * 2) + product.bridge_width;
-    const pdPx = Math.hypot(m.rightPupil.x - m.leftPupil.x, m.rightPupil.y - m.leftPupil.y);
-    const frameWidth = pdPx * (frameFrontMm / AVG_HUMAN_PD_MM);
+    const params = glassesParams[selectedProductId] ?? {};
 
-    // The product photo is wider than the frame front (arms in image).
-    // PHOTO_FRAME_RATIO: approx fraction of image width that is frame front (not arms).
-    const PHOTO_FRAME_RATIO = 0.80;
-    const drawWidth  = frameWidth / PHOTO_FRAME_RATIO;
+    // --- SIZE ---
+    // pxPerMm is calibrated from iris width (11.7 mm average).
+    // Frame front physical width = 2 × lens_width + bridge_width (mm).
+    const frameFrontMm = (product.lens_width * 2) + product.bridge_width;
+    const frameWidth   = m.pxPerMm * frameFrontMm;   // frame front in screen pixels
+
+    // Fraction of image width occupied by the frame front (hinge-to-hinge).
+    // Detected per-image in analyzeGlassesImage; fall back to 0.75 if unknown.
+    const leftHingeFrac   = params.left_hinge_frac  ?? 0.125;
+    const rightHingeFrac  = params.right_hinge_frac ?? 0.875;
+    const photoFrameRatio = Math.max(0.1, rightHingeFrac - leftHingeFrac);
+
+    const drawWidth  = frameWidth / photoFrameRatio;
     const drawHeight = drawWidth * (img.naturalHeight / img.naturalWidth);
 
     // --- POSITION ---
     const centerX = (m.leftPupil.x + m.rightPupil.x) / 2;
     const centerY = (m.leftPupil.y + m.rightPupil.y) / 2;
+    const angle   = Math.atan2(m.rightPupil.y - m.leftPupil.y,
+                                m.rightPupil.x - m.leftPupil.x);
 
-    const params    = glassesParams[selectedProductId] ?? {};
-    const lensYFrac = params.lens_y_frac ?? 0.5;
-    const imgTop    = -lensYFrac * drawHeight;
+    // Align the frame-front centre (not image centre) with the pupil midpoint.
+    const frameCenterFrac = (leftHingeFrac + rightHingeFrac) / 2;
+    const offsetX = -frameCenterFrac * drawWidth;
+    const offsetY = -(params.lens_y_frac ?? 0.5) * drawHeight;
 
-    // --- FRAME PHOTO (no rotation, no drawn arms) ---
+    // --- DRAW FRAME ---
     ctx.save();
     ctx.translate(centerX, centerY);
-    ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, drawHeight);
+    ctx.rotate(angle);
+    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
     ctx.restore();
 }
 
