@@ -103,45 +103,45 @@ function analyzeGlassesImage(product, img) {
         ? `rgb(${Math.round(rS/cnt)},${Math.round(gS/cnt)},${Math.round(bS/cnt)})`
         : '#222222';
 
-    // 4. Build gradient lensCanvas from the interior transparent holes in the PNG.
-    //    Python (process_lenses.py) already made the lens area transparent.
-    //    BFS from image edges identifies exterior transparent pixels;
-    //    remaining transparent pixels = interior lens holes → fill with gradient.
+    // 4. Build gradient lensCanvas from transparent lens holes in the PNG.
+    //    Python (process_lenses.py) made the lens area transparent.
+    //    Flood-fill from the transparent lens-centre pixels, staying within
+    //    the hinge x-range so the fill cannot leak into the exterior background.
     let lensOC = null;
     if (product.lens_top && product.lens_bot) {
-        const extMark = new Uint8Array(w * h);
-        const extBFS  = [];
-        // Seed boundary transparent pixels
-        for (let x = 0; x < w; x++) {
-            if (data[x * 4 + 3] < 128 && !extMark[x])
-                { extMark[x] = 1; extBFS.push(x); }
-            const bi = (h - 1) * w + x;
-            if (data[bi * 4 + 3] < 128 && !extMark[bi])
-                { extMark[bi] = 1; extBFS.push(bi); }
-        }
-        for (let y = 0; y < h; y++) {
-            if (data[y * w * 4 + 3] < 128 && !extMark[y * w])
-                { extMark[y * w] = 1; extBFS.push(y * w); }
-            const ri = y * w + (w - 1);
-            if (data[ri * 4 + 3] < 128 && !extMark[ri])
-                { extMark[ri] = 1; extBFS.push(ri); }
-        }
-        for (let qi = 0; qi < extBFS.length; qi++) {
-            const idx = extBFS[qi];
-            const cy = Math.floor(idx / w), cx = idx % w;
-            for (const [dy, dx] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-                const ny = cy+dy, nx = cx+dx;
-                if (ny < 0 || ny >= h || nx < 0 || nx >= w) continue;
-                const ni = ny * w + nx;
-                if (!extMark[ni] && data[ni * 4 + 3] < 128)
-                    { extMark[ni] = 1; extBFS.push(ni); }
+        const fpW      = rightHinge - leftHinge;
+        const leftLcx  = Math.round(leftHinge + fpW * 0.26);
+        const rightLcx = Math.round(leftHinge + fpW * 0.74);
+        const lcy      = Math.round(h * 0.55);
+
+        const lensMask = new Uint8Array(w * h);
+        const ffVis    = new Uint8Array(w * h);
+
+        function fillHole(sx, sy) {
+            if (sx < leftHinge || sx > rightHinge || sy < 0 || sy >= h) return;
+            const si = sy * w + sx;
+            if (data[si * 4 + 3] > 128 || ffVis[si]) return; // opaque or visited
+            const queue = [si];
+            ffVis[si] = 1;
+            while (queue.length) {
+                const idx = queue.pop();
+                lensMask[idx] = 1;
+                const cy = Math.floor(idx / w), cx = idx % w;
+                for (const [dy, dx] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+                    const ny = cy+dy, nx = cx+dx;
+                    if (ny < 0 || ny >= h || nx < leftHinge || nx > rightHinge) continue;
+                    const ni = ny * w + nx;
+                    if (ffVis[ni]) continue;
+                    ffVis[ni] = 1;
+                    if (data[ni * 4 + 3] < 128) queue.push(ni); // transparent → expand
+                }
             }
         }
-        // Interior holes = transparent AND not exterior-reachable
-        const lensMask = new Uint8Array(w * h);
+        fillHole(leftLcx, lcy);
+        fillHole(rightLcx, lcy);
+
         let lensCount = 0;
-        for (let i = 0; i < w * h; i++)
-            if (data[i * 4 + 3] < 128 && !extMark[i]) { lensMask[i] = 1; lensCount++; }
+        for (let i = 0; i < w * h; i++) if (lensMask[i]) lensCount++;
 
         if (lensCount > 0) {
             let yMin = h, yMax = 0;
@@ -149,9 +149,9 @@ function analyzeGlassesImage(product, img) {
                 for (let x = 0; x < w; x++)
                     if (lensMask[y * w + x]) { if (y < yMin) yMin = y; if (y > yMax) yMax = y; }
 
-            const topColor = product.lens_top;
-            const botColor = product.lens_bot;
-            const lensData = new Uint8ClampedArray(w * h * 4);
+            const topColor  = product.lens_top;
+            const botColor  = product.lens_bot;
+            const lensData  = new Uint8ClampedArray(w * h * 4);
             const lensRange = Math.max(1, yMax - yMin);
             for (let y = 0; y < h; y++)
                 for (let x = 0; x < w; x++) {
