@@ -103,8 +103,9 @@ function analyzeGlassesImage(productId, img) {
         : '#222222';
 
     // 4. Build lens mask via flood-fill from lens centres
-    // DARK_THR=200: sum(R+G+B)<=200 treated as dark frame border → flood-fill stops there
-    const DARK_THR = 200;
+    // DARK_THR=100: tortoiseshell frame borders (sum≈85) stop the fill;
+    // darker amber in arm-shadow zone (sum≈170) is included and covered by gradient
+    const DARK_THR = 100;
     const fpW      = rightHinge - leftHinge;
     const leftLcx  = Math.round(leftHinge + fpW * 0.26);
     const rightLcx = Math.round(leftHinge + fpW * 0.74);
@@ -177,7 +178,7 @@ function analyzeGlassesImage(productId, img) {
             lensData[di]   = Math.round(topColor[0]*(1-t) + botColor[0]*t);
             lensData[di+1] = Math.round(topColor[1]*(1-t) + botColor[1]*t);
             lensData[di+2] = Math.round(topColor[2]*(1-t) + botColor[2]*t);
-            lensData[di+3] = 215; // slightly transparent — tinted lens feel
+            lensData[di+3] = 255; // fully opaque → completely covers arm stubs
         }
 
     const lensOC = new OffscreenCanvas(w, h);
