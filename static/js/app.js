@@ -330,55 +330,14 @@ function drawGlassesOverlay(landmarks, m) {
     // --- POSITION ---
     const centerX = (m.leftPupil.x + m.rightPupil.x) / 2;
     const centerY = (m.leftPupil.y + m.rightPupil.y) / 2;
-    const angle   = Math.atan2(m.rightPupil.y - m.leftPupil.y,
-                                m.rightPupil.x - m.leftPupil.x);
 
-    const params       = glassesParams[selectedProductId] ?? {};
-    const lensYFrac    = params.lens_y_frac ?? 0.5;
-    const armColor     = params.arm_color   ?? '#222222';
-    const armThickness = Math.max(6, drawHeight * 0.13);
+    const params    = glassesParams[selectedProductId] ?? {};
+    const lensYFrac = params.lens_y_frac ?? 0.5;
+    const imgTop    = -lensYFrac * drawHeight;
 
-    // Hinge points in canvas space (outer edges of frame front)
-    const halfFrame = frameWidth / 2;
-    const cos_a = Math.cos(angle), sin_a = Math.sin(angle);
-    const rightHingeX = centerX + halfFrame * cos_a;
-    const rightHingeY = centerY + halfFrame * sin_a;
-    const leftHingeX  = centerX - halfFrame * cos_a;
-    const leftHingeY  = centerY - halfFrame * sin_a;
-
-    const imgTop = -lensYFrac * drawHeight;
-
-    // Frame photo rectangle corners in canvas space (rotated)
-    const fw2 = drawWidth / 2;
-    const fc = [
-        [-fw2, imgTop], [fw2, imgTop],
-        [fw2, imgTop + drawHeight], [-fw2, imgTop + drawHeight],
-    ].map(([lx, ly]) => ({
-        x: centerX + lx * cos_a - ly * sin_a,
-        y: centerY + lx * sin_a + ly * cos_a,
-    }));
-
-    // --- ARMS: drawn only OUTSIDE the frame photo rectangle (evenodd clip) ---
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, canvas.width, canvas.height);   // full canvas
-    ctx.moveTo(fc[0].x, fc[0].y);                  // frame rect (opposite winding)
-    ctx.lineTo(fc[1].x, fc[1].y);
-    ctx.lineTo(fc[2].x, fc[2].y);
-    ctx.lineTo(fc[3].x, fc[3].y);
-    ctx.closePath();
-    ctx.clip('evenodd');
-    ctx.strokeStyle = armColor;
-    ctx.lineWidth   = armThickness;
-    ctx.lineCap     = 'round';
-    ctx.beginPath(); ctx.moveTo(rightHingeX, rightHingeY); ctx.lineTo(m.rightTemple.x, m.rightTemple.y); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(leftHingeX,  leftHingeY);  ctx.lineTo(m.leftTemple.x,  m.leftTemple.y);  ctx.stroke();
-    ctx.restore();
-
-    // --- FRAME PHOTO ---
+    // --- FRAME PHOTO (no rotation, no drawn arms) ---
     ctx.save();
     ctx.translate(centerX, centerY);
-    ctx.rotate(angle);
     ctx.drawImage(img, -drawWidth / 2, imgTop, drawWidth, drawHeight);
     ctx.restore();
 }
