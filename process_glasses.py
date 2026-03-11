@@ -14,7 +14,8 @@ from PIL import Image
 from google import genai
 from google.genai import types
 
-API_KEY = "AIzaSyAbRBGNHLD58EyDLATd4f4qBNw8xFMrbAk"
+import os
+API_KEY = os.getenv("GOOGLE_API_KEY")
 MODEL   = "gemini-3.1-flash-image-preview"
 
 PROMPT = """Edit this eyeglasses product photo:
