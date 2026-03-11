@@ -54,7 +54,8 @@ def serve_glasses(filename: str):
     if not filepath.exists() or not filepath.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
     content = filepath.read_bytes()
-    return Response(content=content, media_type="image/png")
+    return Response(content=content, media_type="image/png",
+                    headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 @app.get("/")

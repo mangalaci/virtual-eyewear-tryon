@@ -1,44 +1,38 @@
 [
   {
-    "id": "rayban-clubmaster",
-    "name": "Ray-Ban Clubmaster RX5154",
+    "id": "pepe-pj3269-c1-52",
+    "name": "Pepe Jeans PJ 3269 C1",
+    "type": "optical",
+    "lens_width": 52,
+    "bridge_width": 18,
+    "temple_length": 140,
+    "frame_image": "pepe_frame.png",
+    "cal_key": "pepe_pj3269",
+    "description": "Pepe Jeans PJ 3269 C1 52 optikai keret",
+    "source_url": "https://eoptika.hu/pepe-jeans-szemuvegkeret-pj-3269-c1-52"
+  },
+  {
+    "id": "reebok-r1017-03-52",
+    "name": "Reebok R 1017 03",
+    "type": "optical",
+    "lens_width": 52,
+    "bridge_width": 17,
+    "temple_length": 140,
+    "frame_image": "reebok_frame.png",
+    "cal_key": "reebok_r1017",
+    "description": "Reebok R 1017 03 52 optikai keret",
+    "source_url": "https://eoptika.hu/reebok-szemuvegkeret-r-1017-03-52"
+  },
+  {
+    "id": "guess-gu2707n-056-51",
+    "name": "Guess GU 2707-N 056",
     "type": "optical",
     "lens_width": 51,
-    "bridge_width": 21,
-    "temple_length": 145,
-    "color": "#1a1a1a",
-    "image": "rayban_clubmaster.png",
-    "lens_y_frac": 0.67,
-    "hinge_y_frac": 0.05,
-    "description": "Ikonikus Clubmaster optikai keret, fekete/arany.",
-    "source_url": "https://eoptika.hu/ray-ban-szemuvegkeret-rx-5154-2000-51"
-  },
-  {
-    "id": "rayban-wayfarer",
-    "name": "Ray-Ban Wayfarer RB2140",
-    "type": "sunglasses",
-    "lens_width": 50,
-    "bridge_width": 22,
-    "temple_length": 150,
-    "color": "#1a1a1a",
-    "image": "rayban_wayfarer.png",
-    "lens_y_frac": 0.46,
-    "hinge_y_frac": 0.10,
-    "description": "A világ leghíresebb napszemüvege, klasszikus fekete.",
-    "source_url": "https://eoptika.hu/ray-ban-napszemuveg-rb-2140-901-50"
-  },
-  {
-    "id": "rayban-erika",
-    "name": "Ray-Ban Erika RB4171",
-    "type": "cat-eye",
-    "lens_width": 54,
-    "bridge_width": 18,
-    "temple_length": 145,
-    "color": "#c97c5d",
-    "image": "rayban_erika.png",
-    "lens_y_frac": 0.50,
-    "hinge_y_frac": 0.12,
-    "description": "Cat-eye napszemüveg, tortoiseshell kerettel.",
-    "source_url": "https://eoptika.hu/ray-ban-napszemuveg-rb-4171-86513-54"
+    "bridge_width": 17,
+    "temple_length": 135,
+    "frame_image": "guess_frame.png",
+    "cal_key": "guess_gu2707",
+    "description": "Guess GU 2707-N 056 51 optikai keret",
+    "source_url": "https://eoptika.hu/guess-szemuvegkeret-gu-2707-n-056-51"
   }
 ]

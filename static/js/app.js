@@ -1,33 +1,129 @@
-import { FaceLandmarker, FilesetResolver, DrawingUtils } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs";
+import * as THREE from "three";
+import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs";
 
-// --- State ---
-let faceLandmarker = null;
-let webcamStream = null;
-let animationFrameId = null;
-let products = [];
-let selectedProductId = null;
-let glassesImages = {};
+// ─── Three.js globals ─────────────────────────────────────────────────────────
+let renderer, scene, camera;
+const glassesGroups = {};
+let threeW = 0, threeH = 0;
+
+// ─── App state ────────────────────────────────────────────────────────────────
+let faceLandmarker     = null;
+let webcamStream       = null;
+let animationFrameId   = null;
+let products           = [];
+let calibration        = {};
+let selectedProductId  = null;
 let latestMeasurements = null;
 
-// Smoothing buffer for measurements
-const SMOOTHING_SIZE = 10;
-const measurementBuffer = { pd: [], bridge: [], faceWidth: [], pxPerMm: [] };
+const SMOOTHING = 10;
+const buf = { pd: [], bridge: [], faceWidth: [], pxPerMm: [] };
 
-// --- DOM Elements ---
-const video = document.getElementById("webcam");
-const canvas = document.getElementById("overlay");
-const ctx = canvas.getContext("2d");
-const startBtn = document.getElementById("startBtn");
-const stopBtn = document.getElementById("stopBtn");
-const placeholder = document.getElementById("cameraPlaceholder");
-const pdValue = document.getElementById("pdValue");
-const bridgeValue = document.getElementById("bridgeValue");
-const faceWidthValue = document.getElementById("faceWidthValue");
-const productGrid = document.getElementById("productGrid");
+// ─── DOM ──────────────────────────────────────────────────────────────────────
+const video     = document.getElementById("webcam");
+const canvas    = document.getElementById("overlay");
+const startBtn  = document.getElementById("startBtn");
+const stopBtn   = document.getElementById("stopBtn");
+const placeholder         = document.getElementById("cameraPlaceholder");
+const pdValue             = document.getElementById("pdValue");
+const bridgeValue         = document.getElementById("bridgeValue");
+const faceWidthValue      = document.getElementById("faceWidthValue");
+const productGrid         = document.getElementById("productGrid");
 const recommendationPanel = document.getElementById("recommendationPanel");
-const recommendationList = document.getElementById("recommendationList");
+const recommendationList  = document.getElementById("recommendationList");
 
-// --- Initialize MediaPipe ---
+// ─── Three.js Init ────────────────────────────────────────────────────────────
+function initThree(w, h) {
+    threeW = w; threeH = h;
+
+    renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setSize(w, h, false);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0x000000, 0);
+
+    scene  = new THREE.Scene();
+    camera = new THREE.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, -500, 500);
+    camera.position.z = 100;
+}
+
+// ─── Build glasses group from texture ────────────────────────────────────────
+const textureLoader = new THREE.TextureLoader();
+
+function addArmPlanes(group, cal, armTex, planeW, planeH, meshOffX, meshOffY) {
+    const armW = cal.arm_w_mm;
+    const armH = cal.arm_h_mm;
+    const armGeo = new THREE.PlaneGeometry(armW, armH);
+
+    const leftHingeX  = (cal.hinge_left_x_frac  - 0.5) * planeW + meshOffX;
+    const rightHingeX = (cal.hinge_right_x_frac - 0.5) * planeW + meshOffX;
+    const hingeY      = (0.5 - cal.hinge_y_frac) * planeH + meshOffY;
+
+    // Left arm — flipped texture, hinge on right, extends left
+    const leftTex = armTex.clone();
+    leftTex.wrapS = THREE.RepeatWrapping;
+    leftTex.repeat.set(-1, 1);
+    leftTex.offset.set(1, 0);
+    leftTex.needsUpdate = true;
+    const leftMesh = new THREE.Mesh(armGeo,
+        new THREE.MeshBasicMaterial({ map: leftTex, transparent: true, alphaTest: 0.01, depthWrite: false }));
+    leftMesh.position.x = -armW / 2;
+    const leftPivot = new THREE.Group();
+    leftPivot.position.set(leftHingeX, hingeY, -1);
+    leftPivot.name = "leftArm";
+    leftPivot.add(leftMesh);
+    group.add(leftPivot);
+
+    // Right arm — normal texture, hinge on left, extends right
+    const rightTex = armTex.clone();
+    rightTex.needsUpdate = true;
+    const rightMesh = new THREE.Mesh(armGeo,
+        new THREE.MeshBasicMaterial({ map: rightTex, transparent: true, alphaTest: 0.01, depthWrite: false }));
+    rightMesh.position.x = armW / 2;
+    const rightPivot = new THREE.Group();
+    rightPivot.position.set(rightHingeX, hingeY, -1);
+    rightPivot.name = "rightArm";
+    rightPivot.add(rightMesh);
+    group.add(rightPivot);
+}
+
+function buildGlassesGroup(product, cal) {
+    return new Promise((resolve, reject) => {
+        const url = `/static/glasses/processed/${product.frame_image}`;
+        textureLoader.load(url, (texture) => {
+            texture.colorSpace = THREE.SRGBColorSpace;
+
+            const pd_mm    = product.lens_width + product.bridge_width;
+            const imgScale = pd_mm / cal.pd_px;
+            const planeW   = cal.img_w * imgScale;
+            const planeH   = cal.img_h * imgScale;
+
+            const geometry = new THREE.PlaneGeometry(planeW, planeH);
+            const material = new THREE.MeshBasicMaterial({
+                map: texture, transparent: true, alphaTest: 0.01,
+                depthWrite: false, side: THREE.FrontSide,
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.x = -(cal.lens_center_x_frac - 0.5) * planeW;
+            mesh.position.y =  (cal.lens_center_y_frac - 0.5) * planeH;
+
+            const group = new THREE.Group();
+            group.add(mesh);
+            group.visible = false;
+
+            if (cal.arm_w_mm) {
+                const armUrl = `/static/glasses/processed/${product.cal_key}_arm_crop.png`;
+                textureLoader.load(armUrl, (armTex) => {
+                    armTex.colorSpace = THREE.SRGBColorSpace;
+                    addArmPlanes(group, cal, armTex, planeW, planeH, mesh.position.x, mesh.position.y);
+                    resolve(group);
+                }, undefined, () => resolve(group));
+            } else {
+                resolve(group);
+            }
+        }, undefined, reject);
+    });
+}
+
+// ─── MediaPipe Init ───────────────────────────────────────────────────────────
 async function initFaceLandmarker() {
     const filesetResolver = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm"
@@ -40,33 +136,26 @@ async function initFaceLandmarker() {
         runningMode: "VIDEO",
         numFaces: 1,
         outputFaceBlendshapes: false,
-        outputFacialTransformationMatrixes: false,
+        outputFacialTransformationMatrixes: true,
     });
 }
 
-// --- Load Products ---
+// ─── Products ─────────────────────────────────────────────────────────────────
 async function loadProducts() {
-    const res = await fetch("/api/products");
-    products = await res.json();
+    const [prodRes, calRes] = await Promise.all([
+        fetch("/api/products"),
+        fetch("/static/glasses/processed/calibration.json"),
+    ]);
+    products    = await prodRes.json();
+    calibration = await calRes.json();
     renderProductGrid();
-    preloadGlassesImages();
-}
-
-function preloadGlassesImages() {
-    for (const p of products) {
-        const img = new Image();
-        img.src = `/glasses/${p.image}`;
-        glassesImages[p.id] = img;
-    }
 }
 
 function renderProductGrid() {
-    productGrid.innerHTML = products
-        .map(
-            (p) => `
+    productGrid.innerHTML = products.map(p => `
         <div class="product-card" data-id="${p.id}">
             <div class="product-thumb">
-                <img src="/glasses/${p.image}" alt="${p.name}">
+                <img src="/static/glasses/processed/${p.frame_image}" alt="${p.name}">
             </div>
             <div class="product-info">
                 <div class="product-name">${p.name}</div>
@@ -74,23 +163,20 @@ function renderProductGrid() {
             </div>
             <span class="product-type-badge">${p.type}</span>
         </div>
-    `
-        )
-        .join("");
-
-    productGrid.querySelectorAll(".product-card").forEach((card) => {
-        card.addEventListener("click", () => selectProduct(card.dataset.id));
-    });
+    `).join("");
+    productGrid.querySelectorAll(".product-card").forEach(c =>
+        c.addEventListener("click", () => selectProduct(c.dataset.id))
+    );
 }
 
 function selectProduct(id) {
     selectedProductId = id;
-    productGrid.querySelectorAll(".product-card").forEach((card) => {
-        card.classList.toggle("selected", card.dataset.id === id);
-    });
+    productGrid.querySelectorAll(".product-card").forEach(c =>
+        c.classList.toggle("selected", c.dataset.id === id)
+    );
 }
 
-// --- Webcam ---
+// ─── Camera ───────────────────────────────────────────────────────────────────
 async function startCamera() {
     try {
         webcamStream = await navigator.mediaDevices.getUserMedia({
@@ -102,323 +188,188 @@ async function startCamera() {
         startBtn.disabled = true;
         stopBtn.disabled = false;
 
-        video.addEventListener("loadeddata", () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            // Match the container's aspect-ratio to the actual camera output so
-            // the canvas and video use the same CSS scale factor (fixes the bug
-            // where a 16:9 camera in a 4:3 container made the overlay ~37% smaller
-            // than the face and caused left/right asymmetry).
-            document.getElementById("videoContainer").style.aspectRatio =
-                `${video.videoWidth} / ${video.videoHeight}`;
+        video.addEventListener("loadeddata", async () => {
+            const w = video.videoWidth, h = video.videoHeight;
+            canvas.width = w; canvas.height = h;
+            document.getElementById("videoContainer").style.aspectRatio = `${w} / ${h}`;
+
+            initThree(w, h);
+
+            // Build a textured plane for every product
+            const builds = products.map(async (p) => {
+                const cal = calibration[p.cal_key];
+                if (!cal) { console.error("No calibration for", p.cal_key); return; }
+                try {
+                    const grp = await buildGlassesGroup(p, cal);
+                    scene.add(grp);
+                    glassesGroups[p.id] = grp;
+                } catch (e) {
+                    console.error("buildGlassesGroup failed for", p.id, e);
+                }
+            });
+            await Promise.allSettled(builds);
+
             detectLoop();
         }, { once: true });
     } catch (err) {
-        alert("Camera access denied. Please allow camera access and try again.");
+        alert("Camera access denied.");
         console.error(err);
     }
 }
 
 function stopCamera() {
-    if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-    }
-    if (webcamStream) {
-        webcamStream.getTracks().forEach((t) => t.stop());
-        webcamStream = null;
-    }
+    if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
+    if (webcamStream) { webcamStream.getTracks().forEach(t => t.stop()); webcamStream = null; }
     video.style.display = "none";
     placeholder.style.display = "flex";
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    pdValue.textContent = "—";
-    bridgeValue.textContent = "—";
-    faceWidthValue.textContent = "—";
+    startBtn.disabled = false; stopBtn.disabled = true;
+    for (const g of Object.values(glassesGroups)) g.visible = false;
+    if (renderer) renderer.render(scene, camera);
+    pdValue.textContent = bridgeValue.textContent = faceWidthValue.textContent = "—";
+    Object.values(buf).forEach(b => (b.length = 0));
 }
 
-// --- Detection Loop ---
+// ─── Detection loop ───────────────────────────────────────────────────────────
 let lastTimestamp = -1;
 
 function detectLoop() {
-    if (!faceLandmarker || !webcamStream) return;
+    if (!webcamStream) return;
+    animationFrameId = requestAnimationFrame(detectLoop);
+
+    if (!faceLandmarker) return; // still loading
 
     const now = performance.now();
-    if (now === lastTimestamp) {
-        animationFrameId = requestAnimationFrame(detectLoop);
-        return;
-    }
+    if (now === lastTimestamp) return;
     lastTimestamp = now;
 
-    const results = faceLandmarker.detectForVideo(video, now);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let results;
+    try { results = faceLandmarker.detectForVideo(video, now); }
+    catch (e) { console.error("detectForVideo:", e); return; }
 
-    if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-        const landmarks = results.faceLandmarks[0];
-        const measurements = calculateMeasurements(landmarks);
-        updateMeasurementDisplay(measurements);
-        drawGlassesOverlay(landmarks, measurements);
+    for (const g of Object.values(glassesGroups)) g.visible = false;
+
+    if (results.faceLandmarks?.length > 0) {
+        const m = calculateMeasurements(results.faceLandmarks[0]);
+        updateMeasurementDisplay(m);
+        positionGlasses(results, m);
     }
 
-    animationFrameId = requestAnimationFrame(detectLoop);
+    renderer.render(scene, camera);
 }
 
-// --- Measurements ---
-// Average inter-pupillary distance for calibration reference
-const AVG_PD_MM = 63; // population average ~63mm
+// ─── Measurements ─────────────────────────────────────────────────────────────
+function calculateMeasurements(lm) {
+    const w = threeW, h = threeH;
+    const lp = lm[468], rp = lm[473];
+    const li = lm[469], ri = lm[471];
 
-function calculateMeasurements(landmarks) {
-    const w = canvas.width;
-    const h = canvas.height;
-
-    // Pupil centers (iris landmarks)
-    const leftPupil = landmarks[468]; // left iris center
-    const rightPupil = landmarks[473]; // right iris center
-
-    // Inner eye corners (for bridge)
-    const leftInner = landmarks[133];
-    const rightInner = landmarks[362];
-
-    // Temple points (face width)
-    const leftTemple = landmarks[127];
-    const rightTemple = landmarks[356];
-
-    // Pixel distances
-    const pdPx = dist(leftPupil, rightPupil, w, h);
-    const bridgePx = dist(leftInner, rightInner, w, h);
-    const faceWidthPx = dist(leftTemple, rightTemple, w, h);
-
-    // Estimate real-world scale using iris width as reference
-    // Average iris diameter is ~11.7mm
-    const leftIrisLeft = landmarks[469];
-    const leftIrisRight = landmarks[471];
-    const irisWidthPx = dist(leftIrisLeft, leftIrisRight, w, h);
-    const pxPerMm = irisWidthPx / 11.7;
-
-    const pdMm = pdPx / pxPerMm;
-    const bridgeMm = bridgePx / pxPerMm;
-    const faceWidthMm = faceWidthPx / pxPerMm;
-
-    // Smooth measurements
-    addToBuffer("pd", pdMm);
-    addToBuffer("bridge", bridgeMm);
-    addToBuffer("faceWidth", faceWidthMm);
-    addToBuffer("pxPerMm", pxPerMm);
+    const pxPerMm = dist2d(li, ri, w, h) / 11.7;
+    addBuf("pd",        dist2d(lp, rp, w, h) / pxPerMm);
+    addBuf("bridge",    dist2d(lm[133], lm[362], w, h) / pxPerMm);
+    addBuf("faceWidth", dist2d(lm[127], lm[356], w, h) / pxPerMm);
+    addBuf("pxPerMm",   pxPerMm);
 
     return {
-        pd: getSmoothed("pd"),
-        bridge: getSmoothed("bridge"),
-        faceWidth: getSmoothed("faceWidth"),
-        pxPerMm: getSmoothed("pxPerMm"),
-        // Raw pixel positions for overlay rendering
-        leftPupil: { x: leftPupil.x * w, y: leftPupil.y * h },
-        rightPupil: { x: rightPupil.x * w, y: rightPupil.y * h },
-        leftInner: { x: leftInner.x * w, y: leftInner.y * h },
-        rightInner: { x: rightInner.x * w, y: rightInner.y * h },
-        leftTemple: { x: leftTemple.x * w, y: leftTemple.y * h },
-        rightTemple: { x: rightTemple.x * w, y: rightTemple.y * h },
-        noseBridge: { x: landmarks[6].x * w, y: landmarks[6].y * h },
-        noseTop: { x: landmarks[4].x * w, y: landmarks[4].y * h },
+        pd: smoothed("pd"), bridge: smoothed("bridge"),
+        faceWidth: smoothed("faceWidth"), pxPerMm: smoothed("pxPerMm"),
+        leftPupil:  { x: lp.x * w, y: lp.y * h },
+        rightPupil: { x: rp.x * w, y: rp.y * h },
     };
 }
 
-function dist(a, b, w, h) {
+function dist2d(a, b, w, h) {
     return Math.sqrt(((a.x - b.x) * w) ** 2 + ((a.y - b.y) * h) ** 2);
 }
-
-function addToBuffer(key, value) {
-    const buf = measurementBuffer[key];
-    buf.push(value);
-    if (buf.length > SMOOTHING_SIZE) buf.shift();
+function addBuf(k, v) { buf[k].push(v); if (buf[k].length > SMOOTHING) buf[k].shift(); }
+function smoothed(k) {
+    const b = buf[k]; if (!b.length) return 0;
+    const s = [...b].sort((a, z) => a - z), m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-function getSmoothed(key) {
-    const buf = measurementBuffer[key];
-    if (buf.length === 0) return 0;
-    const sorted = [...buf].sort((a, b) => a - b);
-    // Use median for robustness
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+// ─── Position glasses on face ─────────────────────────────────────────────────
+function positionGlasses(results, m) {
+    if (!selectedProductId) return;
+    const group = glassesGroups[selectedProductId];
+    if (!group) return;
+
+    const w = threeW, h = threeH;
+
+    // World-space position of the midpoint between the two pupils
+    const wx = (m.leftPupil.x + m.rightPupil.x) / 2 - w / 2;
+    const wy =  h / 2 - (m.leftPupil.y + m.rightPupil.y) / 2;
+
+    // Roll from pupil line
+    const roll = Math.atan2(
+        m.rightPupil.y - m.leftPupil.y,
+        m.rightPupil.x - m.leftPupil.x
+    );
+
+    // Pitch / yaw from facial transformation matrix
+    let pitch = 0, yaw = 0;
+    if (results.facialTransformationMatrixes?.length > 0) {
+        const d  = results.facialTransformationMatrixes[0].data;
+        const eu = new THREE.Euler().setFromRotationMatrix(
+            new THREE.Matrix4().fromArray(Array.from(d)), "YXZ"
+        );
+        yaw   =  eu.y * 0.55;
+        pitch = -eu.x * 0.45;
+    }
+
+    // group.scale converts mm → world pixels
+    group.position.set(wx, wy, 0);
+    group.scale.setScalar(m.pxPerMm);
+    group.rotation.set(pitch, yaw, -roll);
+    group.visible = true;
+
+    // Arms: scale based on actual yaw (undo the 0.55 damping)
+    const realYaw  = yaw / 0.55;
+    const leftArm  = group.getObjectByName("leftArm");
+    const rightArm = group.getObjectByName("rightArm");
+    if (leftArm) {
+        const s = Math.max(0, Math.sin(realYaw));
+        leftArm.scale.x = s;
+        leftArm.visible = s > 0.02;
+    }
+    if (rightArm) {
+        const s = Math.max(0, -Math.sin(realYaw));
+        rightArm.scale.x = s;
+        rightArm.visible = s > 0.02;
+    }
 }
 
+// ─── Measurement display ──────────────────────────────────────────────────────
 function updateMeasurementDisplay(m) {
-    pdValue.textContent = `${m.pd.toFixed(1)} mm`;
-    bridgeValue.textContent = `${m.bridge.toFixed(1)} mm`;
+    pdValue.textContent        = `${m.pd.toFixed(1)} mm`;
+    bridgeValue.textContent    = `${m.bridge.toFixed(1)} mm`;
     faceWidthValue.textContent = `${m.faceWidth.toFixed(1)} mm`;
-
     latestMeasurements = m;
     debouncedRecommend();
 }
 
-// --- Glasses Overlay ---
-function drawGlassesOverlay(landmarks, m) {
-    if (!selectedProductId) {
-        drawDefaultOverlay(m);
-        return;
-    }
-
-    const img = glassesImages[selectedProductId];
-    if (!img || !img.complete || img.naturalWidth === 0) {
-        drawDefaultOverlay(m);
-        return;
-    }
-
-    const w = canvas.width, h = canvas.height;
-
-    // --- SIZE ---
-    // Use the product's physical dimensions (mm) and the iris-calibrated px/mm scale.
-    // frame front width = lens_width × 2 + bridge_width (from products.json)
-    const product = products.find(p => p.id === selectedProductId);
-    const frameFrontMm = (product.lens_width * 2) + product.bridge_width;
-    const glassesWidth = frameFrontMm * m.pxPerMm;
-    const glassesHeight = glassesWidth * (img.naturalHeight / img.naturalWidth);
-
-    // Center between pupils
-    const centerX = (m.leftPupil.x + m.rightPupil.x) / 2;
-    const centerY = (m.leftPupil.y + m.rightPupil.y) / 2;
-
-    // Roll: tilt of the head left/right
-    const angle = Math.atan2(m.rightPupil.y - m.leftPupil.y, m.rightPupil.x - m.leftPupil.x);
-
-    // Per-product vertical offset: lens_y_frac tells where in the image the lens
-    // centres sit (0 = top, 1 = bottom). Default 0.5 = image centre.
-    const lensYFrac = product?.lens_y_frac ?? 0.5;
-
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.rotate(angle);
-    ctx.drawImage(img, -glassesWidth / 2, -lensYFrac * glassesHeight, glassesWidth, glassesHeight);
-    ctx.restore();
-
-    // --- Temple arms ---
-    const cos_a = Math.cos(angle);
-    const sin_a = Math.sin(angle);
-
-    // hinge_y_frac: how far down from the TOP of the image the hinge sits.
-    // In rotated (frame) space the image top is at y = -lensYFrac*H, so the hinge is at:
-    //   hinge_y_rot = -lensYFrac*H + hingeYFrac*H = -(lensYFrac - hingeYFrac)*H
-    const hingeYFrac = product.hinge_y_frac ?? 0.10;
-    const hinge_y_rot = -(lensYFrac - hingeYFrac) * glassesHeight;
-
-    // Transform hinge from rotated frame space → canvas world space
-    const rightHingeX = centerX + (glassesWidth / 2) * cos_a - hinge_y_rot * sin_a;
-    const rightHingeY = centerY + (glassesWidth / 2) * sin_a + hinge_y_rot * cos_a;
-    const leftHingeX  = centerX - (glassesWidth / 2) * cos_a - hinge_y_rot * sin_a;
-    const leftHingeY  = centerY - (glassesWidth / 2) * sin_a + hinge_y_rot * cos_a;
-
-    const armWidth = Math.max(2, glassesHeight * 0.055);
-    ctx.save();
-    ctx.strokeStyle = product.color || "#222222";
-    ctx.lineWidth = armWidth;
-    ctx.lineCap = "round";
-
-    // Draw each arm as a quadratic bezier that bows slightly outward from the face,
-    // giving a more natural curve than a straight line.
-    for (const [hx, hy, ex, ey] of [
-        [rightHingeX, rightHingeY, m.rightTemple.x, m.rightTemple.y],
-        [leftHingeX,  leftHingeY,  m.leftTemple.x,  m.leftTemple.y],
-    ]) {
-        const mx = (hx + ex) / 2;
-        const my = (hy + ey) / 2;
-        // Outward direction: from face centre toward the hinge point
-        const outX = hx - centerX, outY = hy - centerY;
-        const outLen = Math.sqrt(outX * outX + outY * outY) || 1;
-        const cpX = mx + (outX / outLen) * glassesWidth * 0.10;
-        const cpY = my + (outY / outLen) * glassesWidth * 0.10;
-        ctx.beginPath();
-        ctx.moveTo(hx, hy);
-        ctx.quadraticCurveTo(cpX, cpY, ex, ey);
-        ctx.stroke();
-    }
-
-    ctx.restore();
-}
-
-function drawDefaultOverlay(m) {
-    // Draw a simple wireframe glasses overlay when no product is selected
-    const centerX = (m.leftPupil.x + m.rightPupil.x) / 2;
-    const centerY = (m.leftPupil.y + m.rightPupil.y) / 2;
-    const pdPx = Math.sqrt(
-        (m.rightPupil.x - m.leftPupil.x) ** 2 + (m.rightPupil.y - m.leftPupil.y) ** 2
-    );
-    const angle = Math.atan2(m.rightPupil.y - m.leftPupil.y, m.rightPupil.x - m.leftPupil.x);
-
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.rotate(angle);
-
-    const lensRadius = pdPx * 0.42;
-    const lensOffsetX = pdPx / 2;
-    const bridgeY = 0;
-
-    ctx.strokeStyle = "rgba(108, 99, 255, 0.7)";
-    ctx.lineWidth = 2.5;
-
-    // Left lens
-    ctx.beginPath();
-    ctx.ellipse(-lensOffsetX, bridgeY, lensRadius, lensRadius * 0.85, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Right lens
-    ctx.beginPath();
-    ctx.ellipse(lensOffsetX, bridgeY, lensRadius, lensRadius * 0.85, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Bridge
-    ctx.beginPath();
-    ctx.moveTo(-lensOffsetX + lensRadius, bridgeY);
-    ctx.lineTo(lensOffsetX - lensRadius, bridgeY);
-    ctx.stroke();
-
-    // Temples (arms)
-    const templeLen = pdPx * 0.5;
-    ctx.beginPath();
-    ctx.moveTo(-lensOffsetX - lensRadius, bridgeY);
-    ctx.lineTo(-lensOffsetX - lensRadius - templeLen, bridgeY + templeLen * 0.3);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(lensOffsetX + lensRadius, bridgeY);
-    ctx.lineTo(lensOffsetX + lensRadius + templeLen, bridgeY + templeLen * 0.3);
-    ctx.stroke();
-
-    ctx.restore();
-}
-
-// --- Recommendation ---
+// ─── Recommendation ───────────────────────────────────────────────────────────
 let recommendTimeout = null;
-
 function debouncedRecommend() {
-    if (recommendTimeout) clearTimeout(recommendTimeout);
+    clearTimeout(recommendTimeout);
     recommendTimeout = setTimeout(fetchRecommendation, 1000);
 }
-
 async function fetchRecommendation() {
     if (!latestMeasurements) return;
-
     try {
         const res = await fetch("/api/recommend", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 pd_mm: latestMeasurements.pd,
                 face_width_mm: latestMeasurements.faceWidth,
                 bridge_width_mm: latestMeasurements.bridge,
             }),
         });
-        const recommendations = await res.json();
-        renderRecommendations(recommendations);
-    } catch (err) {
-        console.error("Recommendation error:", err);
-    }
+        renderRecommendations(await res.json());
+    } catch (err) { console.error(err); }
 }
-
 function renderRecommendations(recs) {
     recommendationPanel.style.display = "block";
-    recommendationList.innerHTML = recs
-        .map(
-            (r, i) => `
+    recommendationList.innerHTML = recs.map((r, i) => `
         <div class="rec-item">
             <div class="rec-rank ${i === 0 ? "top" : ""}">${i + 1}</div>
             <div class="rec-info">
@@ -427,19 +378,12 @@ function renderRecommendations(recs) {
             </div>
             <div class="rec-score">${Math.round(r.score * 100)}%</div>
         </div>
-    `
-        )
-        .join("");
+    `).join("");
 }
 
-// --- Event Listeners ---
+// ─── Init ─────────────────────────────────────────────────────────────────────
 startBtn.addEventListener("click", startCamera);
 stopBtn.addEventListener("click", stopCamera);
 
-// --- Init ---
-async function init() {
-    await Promise.all([initFaceLandmarker(), loadProducts()]);
-    console.log("Virtual Eyewear Try-On initialized");
-}
-
-init();
+loadProducts().catch(err => console.error("loadProducts failed:", err));
+initFaceLandmarker().catch(err => console.error("initFaceLandmarker failed:", err));
