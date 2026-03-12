@@ -12,12 +12,12 @@ body {
 .embed-wrap {
     display: flex;
     flex-direction: column;
-    height: 100vh;
 }
 
 .video-container {
     position: relative;
-    flex: 1;
+    width: 100%;
+    aspect-ratio: 4 / 3;
     background: #e8e3db;
     overflow: hidden;
 }
