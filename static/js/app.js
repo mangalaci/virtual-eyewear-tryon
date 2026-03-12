@@ -16,7 +16,7 @@ let selectedProductId  = null;
 let latestMeasurements = null;
 
 const SMOOTHING = 10;
-const GLASSES_SCALE = 1.15; // increase to make glasses larger on face
+const GLASSES_SCALE = 1.1; // increase to make glasses larger on face
 const buf = { pd: [], bridge: [], faceWidth: [], pxPerMm: [] };
 
 // ─── DOM ──────────────────────────────────────────────────────────────────────
