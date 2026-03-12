@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Try-On</title>
+    <link rel="stylesheet" href="/static/css/embed.css">
+</head>
+<body>
+    <div class="embed-wrap">
+        <div class="video-container" id="videoContainer">
+            <video id="webcam" autoplay playsinline></video>
+            <canvas id="overlay"></canvas>
+            <div class="camera-placeholder" id="cameraPlaceholder">
+                <div class="placeholder-content">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                        <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                    <p>Press Start Camera</p>
+                </div>
+            </div>
+            <div class="measurements-panel" id="measurementsPanel">
+                <div class="measurement-grid">
+                    <div class="measurement-item">
+                        <span class="measurement-label">PD</span>
+                        <span class="measurement-value" id="pdValue">—</span>
+                    </div>
+                    <div class="measurement-item">
+                        <span class="measurement-label">Bridge</span>
+                        <span class="measurement-value" id="bridgeValue">—</span>
+                    </div>
+                    <div class="measurement-item">
+                        <span class="measurement-label">Face</span>
+                        <span class="measurement-value" id="faceWidthValue">—</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="embed-controls">
+            <button id="startBtn" class="btn btn-primary">Start Camera</button>
+            <button id="stopBtn" class="btn btn-secondary" disabled>Stop</button>
+        </div>
+
+        <!-- Hidden elements required by app.js -->
+        <div style="display:none">
+            <div id="productGrid"></div>
+            <div id="recommendationPanel"><div id="recommendationList"></div></div>
+        </div>
+    </div>
+
+    <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js"}}</script>
+    <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

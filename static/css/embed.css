@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #f7f5f2;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.embed-wrap {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.video-container {
+    position: relative;
+    flex: 1;
+    background: #e8e3db;
+    overflow: hidden;
+}
+
+#webcam {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    display: none;
+}
+
+#overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    transform: scaleX(-1);
+    pointer-events: none;
+}
+
+.camera-placeholder {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0ece6;
+}
+
+.placeholder-content {
+    text-align: center;
+    color: #b0aa9f;
+}
+
+.placeholder-content svg { margin-bottom: 0.6rem; opacity: 0.5; }
+.placeholder-content p { font-size: 0.8rem; letter-spacing: 0.05em; }
+
+.measurements-panel {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 0.5rem 0.8rem;
+    background: linear-gradient(to top, rgba(0,0,0,0.4), transparent);
+    display: none;
+}
+
+.measurement-grid { display: flex; gap: 1rem; }
+
+.measurement-item { display: flex; align-items: center; gap: 0.3rem; }
+
+.measurement-label {
+    font-size: 0.6rem;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+.measurement-value {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.92);
+}
+
+.embed-controls {
+    padding: 0.65rem 0.8rem;
+    display: flex;
+    gap: 0.5rem;
+    background: #fff;
+    border-top: 1px solid #e8e3db;
+}
+
+.btn {
+    padding: 0.5rem 1.2rem;
+    border: none;
+    border-radius: 2px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+}
+
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.btn-primary { background: #1a1a18; color: #f7f5f2; }
+.btn-primary:hover:not(:disabled) { background: #2d2d2b; }
+
+.btn-secondary {
+    background: transparent;
+    color: #6b6860;
+    border: 1px solid #d0cbc2;
+}
+.btn-secondary:hover:not(:disabled) { border-color: #a09890; color: #1a1a18; }

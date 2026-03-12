@@ -386,8 +386,12 @@ function renderRecommendations(recs) {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+const embedProductId = new URLSearchParams(window.location.search).get('product');
+
 startBtn.addEventListener("click", startCamera);
 stopBtn.addEventListener("click", stopCamera);
 
-loadProducts().catch(err => console.error("loadProducts failed:", err));
+loadProducts()
+    .then(() => { if (embedProductId) selectProduct(embedProductId); })
+    .catch(err => console.error("loadProducts failed:", err));
 initFaceLandmarker().catch(err => console.error("initFaceLandmarker failed:", err));

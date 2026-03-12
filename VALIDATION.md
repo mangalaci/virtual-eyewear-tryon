@@ -82,3 +82,24 @@ Paid workarounds confirmed. Parallel invention confirmed. Urgency real.
 4. Embed the existing tool as a script tag (can be done manually)
 
 **One charged card beats everything else.**
+
+---
+
+## USP
+
+> **"Warby Parker-szintű real-time AR try-on — bármely eyewear store-ba, app nélkül, 5 perc alatt."**
+
+### Versenytárs összehasonlítás
+
+| Dimenzió | Saját termék | Virtually.me / Ditto |
+|----------|-------------|----------------------|
+| Real-time webcam AR | YES | NO (statikus fotó) |
+| App install szükséges | NO | néha YES |
+| Embed bármely store-ba | YES | korlátozott |
+| Ár | $149/mo | $99–500/mo (generikus) |
+
+### Sales üzenet (store ownernek)
+"A legtöbb try-on widget statikus fotót kér a vásárlótól — aztán várni kell az eredményre.
+A mi megoldásunk real-time: a vásárló megnyitja a store-t, bekapcsol a kamera, és azonnal
+látja magán a szemüveget. Nincs app, nincs feltöltés. Ugyanaz, amit a Warby Parker épített
+magának — de a te store-odba, $149/hónapért."

@@ -63,6 +63,11 @@ async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/embed")
+async def embed(request: Request):
+    return templates.TemplateResponse("embed.html", {"request": request})
+
+
 @app.get("/api/products")
 async def get_products():
     return load_products()
