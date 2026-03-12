@@ -28,6 +28,7 @@ const pdValue             = document.getElementById("pdValue");
 const bridgeValue         = document.getElementById("bridgeValue");
 const faceWidthValue      = document.getElementById("faceWidthValue");
 const productGrid         = document.getElementById("productGrid");
+const measurementsPanel   = document.getElementById("measurementsPanel");
 const recommendationPanel = document.getElementById("recommendationPanel");
 const recommendationList  = document.getElementById("recommendationList");
 
@@ -185,6 +186,7 @@ async function startCamera() {
         video.srcObject = webcamStream;
         video.style.display = "block";
         placeholder.style.display = "none";
+        measurementsPanel.style.display = "block";
         startBtn.disabled = true;
         stopBtn.disabled = false;
 
@@ -222,6 +224,7 @@ function stopCamera() {
     if (webcamStream) { webcamStream.getTracks().forEach(t => t.stop()); webcamStream = null; }
     video.style.display = "none";
     placeholder.style.display = "flex";
+    measurementsPanel.style.display = "none";
     startBtn.disabled = false; stopBtn.disabled = true;
     for (const g of Object.values(glassesGroups)) g.visible = false;
     if (renderer) renderer.render(scene, camera);

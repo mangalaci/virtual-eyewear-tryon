@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
+
 * {
     margin: 0;
     padding: 0;
@@ -5,46 +7,71 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #0f0f1a;
-    color: #e0e0e0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #f7f5f2;
+    color: #1a1a18;
     min-height: 100vh;
 }
 
+/* ─── Header ─────────────────────────────────────────── */
 header {
-    text-align: center;
-    padding: 1.5rem 1rem 1rem;
+    background: #fff;
+    border-bottom: 1px solid #e8e3db;
+    padding: 1.1rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
-header h1 {
-    font-size: 1.8rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, #6c63ff, #48c6ef);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+.brand {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
 }
 
-.subtitle {
-    color: #888;
-    margin-top: 0.3rem;
-    font-size: 0.95rem;
+.brand-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #1a1a18;
+    text-transform: uppercase;
 }
 
+.brand-tagline {
+    font-size: 0.75rem;
+    color: #9a9690;
+    letter-spacing: 0.04em;
+    font-weight: 400;
+}
+
+.header-badge {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #7a7570;
+    background: #f0ece6;
+    border: 1px solid #e0dbd2;
+    padding: 0.35rem 0.8rem;
+    border-radius: 20px;
+}
+
+/* ─── Main layout ─────────────────────────────────────── */
 main {
-    max-width: 1200px;
+    max-width: 1100px;
     margin: 0 auto;
-    padding: 1rem;
+    padding: 2rem 1.5rem;
 }
 
 .app-container {
     display: grid;
-    grid-template-columns: 1fr 340px;
-    gap: 1.5rem;
+    grid-template-columns: 1fr 320px;
+    gap: 2rem;
     align-items: start;
 }
 
-/* Camera Section */
+/* ─── Camera Section ──────────────────────────────────── */
 .camera-section {
     display: flex;
     flex-direction: column;
@@ -55,10 +82,10 @@ main {
     position: relative;
     width: 100%;
     aspect-ratio: 4 / 3;
-    background: #1a1a2e;
-    border-radius: 12px;
+    background: #e8e3db;
+    border-radius: 4px;
     overflow: hidden;
-    border: 2px solid #2a2a3e;
+    border: 1px solid #ddd8cf;
 }
 
 #webcam {
@@ -88,140 +115,159 @@ main {
     display: flex;
     align-items: center;
     justify-content: center;
+    background: #f0ece6;
 }
 
 .placeholder-content {
     text-align: center;
-    color: #555;
+    color: #b0aa9f;
 }
 
 .placeholder-content svg {
     margin-bottom: 1rem;
+    opacity: 0.5;
 }
 
+.placeholder-content p {
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    font-weight: 400;
+}
+
+/* ─── Measurements overlay (inside video) ────────────── */
+.measurements-panel {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0.6rem 1rem;
+    background: linear-gradient(to top, rgba(0,0,0,0.45), transparent);
+    display: none;
+}
+
+.measurement-grid {
+    display: flex;
+    gap: 1.2rem;
+}
+
+.measurement-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.measurement-label {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+.measurement-value {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.92);
+}
+
+/* ─── Camera controls ─────────────────────────────────── */
 .camera-controls {
     display: flex;
     gap: 0.75rem;
 }
 
 .btn {
-    padding: 0.7rem 1.5rem;
+    padding: 0.65rem 1.6rem;
     border: none;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    font-weight: 600;
+    border-radius: 2px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     cursor: pointer;
     transition: all 0.2s;
+    font-family: 'Inter', sans-serif;
 }
 
 .btn:disabled {
-    opacity: 0.4;
+    opacity: 0.35;
     cursor: not-allowed;
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #6c63ff, #48c6ef);
-    color: white;
+    background: #1a1a18;
+    color: #f7f5f2;
 }
 
 .btn-primary:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 15px rgba(108, 99, 255, 0.4);
+    background: #2d2d2b;
 }
 
 .btn-secondary {
-    background: #2a2a3e;
-    color: #ccc;
+    background: transparent;
+    color: #6b6860;
+    border: 1px solid #d0cbc2;
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background: #3a3a4e;
+    border-color: #a09890;
+    color: #1a1a18;
 }
 
-/* Measurements Panel */
-.measurements-panel {
-    background: #1a1a2e;
-    border-radius: 12px;
-    padding: 1.2rem;
-    border: 1px solid #2a2a3e;
-}
-
-.measurements-panel h3 {
-    font-size: 1rem;
-    color: #aaa;
-    margin-bottom: 0.8rem;
-}
-
-.measurement-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
-}
-
-.measurement-item {
-    text-align: center;
-}
-
-.measurement-label {
-    display: block;
-    font-size: 0.75rem;
-    color: #777;
-    margin-bottom: 0.3rem;
-}
-
-.measurement-value {
-    display: block;
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: #48c6ef;
-}
-
-/* Products Section */
+/* ─── Products Section ────────────────────────────────── */
 .products-section {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.2rem;
 }
 
 .products-section h2 {
-    font-size: 1.2rem;
-    color: #ccc;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: #1a1a18;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid #e0dbd2;
 }
 
 .product-grid {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.5rem;
 }
 
 .product-card {
-    background: #1a1a2e;
-    border: 2px solid #2a2a3e;
-    border-radius: 10px;
-    padding: 0.8rem;
+    background: #fff;
+    border: 1px solid #e8e3db;
+    border-radius: 3px;
+    padding: 0.9rem 1rem;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.18s;
     display: flex;
     align-items: center;
-    gap: 0.8rem;
+    gap: 1rem;
 }
 
 .product-card:hover {
-    border-color: #6c63ff;
-    transform: translateX(-2px);
+    border-color: #b0aa9f;
+    background: #faf8f5;
 }
 
 .product-card.selected {
-    border-color: #48c6ef;
-    background: #1e1e3a;
-    box-shadow: 0 0 15px rgba(72, 198, 239, 0.15);
+    border-color: #1a1a18;
+    background: #faf8f5;
+}
+
+.product-card.selected .product-name {
+    color: #1a1a18;
 }
 
 .product-thumb {
-    width: 60px;
-    height: 36px;
-    border-radius: 6px;
-    background: #252540;
+    width: 72px;
+    height: 40px;
+    border-radius: 2px;
+    background: #f0ece6;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -233,6 +279,7 @@ main {
     width: 100%;
     height: 100%;
     object-fit: contain;
+    mix-blend-mode: multiply;
 }
 
 .product-info {
@@ -241,105 +288,55 @@ main {
 }
 
 .product-name {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: #ddd;
+    font-weight: 500;
+    font-size: 0.85rem;
+    color: #2d2d2b;
+    letter-spacing: 0.01em;
 }
 
 .product-specs {
-    font-size: 0.75rem;
-    color: #777;
-    margin-top: 0.15rem;
+    font-size: 0.72rem;
+    color: #9a9690;
+    margin-top: 0.2rem;
+    letter-spacing: 0.03em;
 }
 
 .product-type-badge {
-    font-size: 0.65rem;
-    padding: 0.15rem 0.5rem;
+    font-size: 0.6rem;
+    padding: 0.2rem 0.55rem;
     border-radius: 20px;
-    background: #2a2a4e;
-    color: #8888aa;
+    background: #f0ece6;
+    color: #9a9690;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
+    font-weight: 500;
+    border: 1px solid #e0dbd2;
 }
 
-/* Recommendation Panel */
+/* ─── Recommendation Panel — hidden ──────────────────── */
 .recommendation-panel {
-    background: #1a1a2e;
-    border-radius: 12px;
-    padding: 1.2rem;
-    border: 1px solid #2a2a3e;
+    display: none !important;
 }
 
-.recommendation-panel h3 {
-    font-size: 1rem;
-    color: #aaa;
-    margin-bottom: 0.8rem;
-}
-
-.rec-item {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    padding: 0.6rem 0;
-    border-bottom: 1px solid #252540;
-}
-
-.rec-item:last-child {
-    border-bottom: none;
-}
-
-.rec-rank {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: #2a2a4e;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #6c63ff;
-    flex-shrink: 0;
-}
-
-.rec-rank.top {
-    background: linear-gradient(135deg, #6c63ff, #48c6ef);
-    color: white;
-}
-
-.rec-info {
-    flex: 1;
-}
-
-.rec-name {
-    font-weight: 600;
-    font-size: 0.85rem;
-}
-
-.rec-notes {
-    font-size: 0.7rem;
-    color: #777;
-    margin-top: 0.15rem;
-}
-
-.rec-score {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #48c6ef;
-}
-
-/* Responsive */
+/* ─── Responsive ──────────────────────────────────────── */
 @media (max-width: 800px) {
-    .app-container {
-        grid-template-columns: 1fr;
+    header {
+        padding: 1rem 1.2rem;
     }
 
-    .measurement-grid {
-        grid-template-columns: repeat(3, 1fr);
+    .app-container {
+        grid-template-columns: 1fr;
     }
 
     .product-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+    }
+
+    .product-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
     }
 }
