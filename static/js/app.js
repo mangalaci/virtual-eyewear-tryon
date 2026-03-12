@@ -189,7 +189,10 @@ async function startCamera() {
         placeholder.style.display = "none";
         measurementsPanel.style.display = "block";
         startBtn.disabled = true;
+        startBtn.style.display = "none";
         stopBtn.disabled = false;
+        const embedControls = document.getElementById("embedControls");
+        if (embedControls) embedControls.style.display = "flex";
 
         video.addEventListener("loadeddata", async () => {
             const w = video.videoWidth, h = video.videoHeight;
