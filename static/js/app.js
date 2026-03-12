@@ -16,6 +16,7 @@ let selectedProductId  = null;
 let latestMeasurements = null;
 
 const SMOOTHING = 10;
+const GLASSES_SCALE = 1.15; // increase to make glasses larger on face
 const buf = { pd: [], bridge: [], faceWidth: [], pxPerMm: [] };
 
 // ─── DOM ──────────────────────────────────────────────────────────────────────
@@ -321,7 +322,7 @@ function positionGlasses(results, m) {
 
     // group.scale converts mm → world pixels
     group.position.set(wx, wy, 0);
-    group.scale.setScalar(m.pxPerMm);
+    group.scale.setScalar(m.pxPerMm * GLASSES_SCALE);
     group.rotation.set(pitch, yaw, -roll);
     group.visible = true;
 
